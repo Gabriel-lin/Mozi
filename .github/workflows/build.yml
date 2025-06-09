@@ -39,9 +39,11 @@ jobs:
             sudo apt-get update
             sudo apt-get install -y \
               libglib2.0-dev \
+              libgdk-pixbuf-2.0-dev \
+              libgtk-3-dev \
               pkg-config
           elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-            brew install pkg-config glib
+            brew install pkg-config glib gtk+3
           elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
             echo "No additional dependencies needed for Windows"
           fi
