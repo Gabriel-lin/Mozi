@@ -1,0 +1,47 @@
+name: Build Tauri App
+
+on:
+  push:
+    branches:
+      - main  # 触发构建的分支
+  pull_request:
+    branches:
+      - main  # 在 PR 时触发构建
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]  # 支持的操作系统
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 22  # 使用的 Node.js 版本
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Install Tauri CLI
+        run: npm install -g @tauri-apps/cli
+
+      - name: Install project dependencies
+        run: npm install
+
+      - name: Build Tauri app
+        run: npm run tauri:build
+        env:
+          TAURI_PLATFORM: ${{ matrix.os }}  # 根据操作系统设置平台
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tauri-build-${{ matrix.os }}
+          path: src-tauri/target/release/bundle
