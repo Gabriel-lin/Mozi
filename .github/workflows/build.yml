@@ -32,6 +32,14 @@ jobs:
       - name: Install Tauri CLI
         run: npm install -g @tauri-apps/cli
 
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libglib2.0-dev \
+            libgobject-2.0-dev \
+            pkg-config
+
       - name: Install project dependencies
         run: npm install
 
