@@ -1,11 +1,14 @@
-import React from 'react';
-import DynamicLineChart from '@/cpu/DynamicLineChart';
+import React, { lazy, Suspense } from 'react';
+
+const DynamicLineChart = lazy(() => import('./cpu/DynamicLineChart'));
 
 function App() {
   return (
     <div className="App">
       <h1>动态折线图</h1>
-      <DynamicLineChart />
+      <Suspense fallback={<div>Loading...</div>}>
+        <DynamicLineChart />
+      </Suspense>
     </div>
   );
 }

@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.gab.mozi",
   "build": {
-    "frontendDist": "../build",
+    "frontendDist": "../dist",
     "devUrl": "http://localhost:3000",
     "beforeDevCommand": "npm run start",
     "beforeBuildCommand": "npm run build"
