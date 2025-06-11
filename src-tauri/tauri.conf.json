@@ -25,11 +25,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": {
-      "windows": ["portable", "nsis", "msi"],
-      "linux": ["deb", "rpm", "AppImage"],
-      "darwin": ["dmg", "app"]
-    },
+    "targets": ["deb", "rpm", "nsis", "msi", "dmg", "app"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
