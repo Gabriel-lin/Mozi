@@ -1,5 +1,5 @@
 {
-  "name": "react-echarts-demo",
+  "name": "Mozi",
   "version": "0.1.0",
   "description": "A dynamic line chart application built with React and ECharts",
   "homepage": "https://your-project-homepage.com",
@@ -23,12 +23,11 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject",
-    "electron": "electron .  --no-sandbox",
-    "electron-build": "electron-builder",
+    "start": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "electron": "electron . --no-sandbox",
+    "electron-build": "npm run build && electron-builder",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build"
@@ -78,8 +77,13 @@
     ]
   },
   "devDependencies": {
+    "@types/react": "^19.1.7",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.5.2",
     "electron": "^36.4.0",
-    "electron-builder": "^26.0.12"
+    "electron-builder": "^26.0.12",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5"
   },
   "optionalDependencies": {
     "fsevents": "^2.3.3"

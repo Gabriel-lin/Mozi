@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "react-echarts-demo",
+  "productName": "Mozi",
   "version": "0.1.0",
-  "identifier": "com.gab.dynamiclinechart",
+  "identifier": "com.gab.mozi",
   "build": {
     "frontendDist": "../build",
     "devUrl": "http://localhost:3000",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "react-echarts-demo",
+        "title": "Mozi",
         "width": 800,
         "height": 600,
         "resizable": true,

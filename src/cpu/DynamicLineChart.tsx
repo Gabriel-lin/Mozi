@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import ReactECharts from 'echarts-for-react';
+import React, { useState, useEffect } from "react";
+import ReactECharts from "echarts-for-react";
 
 const DynamicLineChart = () => {
   const [data, setData] = useState([]);
@@ -8,7 +8,7 @@ const DynamicLineChart = () => {
   useEffect(() => {
     const interval = setInterval(() => {
       setData((prevData) => {
-        const newData = [...prevData];
+        const newData: any = [...prevData];
         const currentTime = new Date().getTime(); // 当前时间戳
         const value = Math.sin(currentTime / 1000); // 根据时间生成正弦值
         newData.push({
@@ -28,15 +28,15 @@ const DynamicLineChart = () => {
   // ECharts 配置
   const option = {
     xAxis: {
-      type: 'time', // 使用时间轴
+      type: "time", // 使用时间轴
     },
     yAxis: {
-      type: 'value',
+      type: "value",
     },
     series: [
       {
-        data: data.map((point) => [point.time, point.value]), // 数据格式为 [时间, 值]
-        type: 'line',
+        data: data.map((point: any) => [point.time, point.value]), // 数据格式为 [时间, 值]
+        type: "line",
         smooth: true, // 使曲线平滑
       },
     ],
@@ -44,7 +44,10 @@ const DynamicLineChart = () => {
 
   return (
     <div>
-      <ReactECharts option={option} style={{ height: '400px', width: '100%' }} />
+      <ReactECharts
+        option={option}
+        style={{ height: "400px", width: "100%" }}
+      />
     </div>
   );
 };

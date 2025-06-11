@@ -1,5 +1,5 @@
 import React from 'react';
-import DynamicLineChart from './DynamicLineChart';
+import DynamicLineChart from '@/cpu/DynamicLineChart';
 
 function App() {
   return (
