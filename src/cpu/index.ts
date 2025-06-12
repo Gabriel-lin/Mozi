@@ -1,3 +1,3 @@
-import DynamicLineChart from "./DynamicLineChart.tsx";
+import DynamicLineChart from "./DynamicLineChart";
 
-export { DynamicLineChart };
+export default DynamicLineChart;
