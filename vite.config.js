@@ -1,6 +1,9 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   plugins: [react()],
@@ -10,12 +13,11 @@ export default defineConfig({
   envPrefix: ["VITE_", "TAURI_ENV_*"],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "src"), // 设置 @ 为 src 目录的别名
-      "@tauri-apps/api": path.resolve(
-        __dirname,
-        "node_modules/@tauri-apps/api"
-      ), // 添加 Tauri API 别名
+      "@": path.resolve(__dirname, "src"),
     },
+  },
+  optimizeDeps: {
+    exclude: ["@tauri-apps/api"],
   },
   build: {
     // Tauri uses Chromium on Windows and WebKit on macOS and Linux

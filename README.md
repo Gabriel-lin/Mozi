@@ -2,19 +2,21 @@
 
 ## target
 
-* Customized travel features \
-    1. cpu, gpu, memory, i/o, peripherals  infos
-    2. task planning, and dynamic adjustment
-    3. Support text, pictures, voice, and video forms
+* mission planning features
+    1. cpu, gpu, memory, i/o, peripherals infos on agent app
+    2. task planning (general/professional/top-level/low-level),
+     and dynamic adjustment (self-correcting with RL)
+    3. support text, pictures, voice, and video forms
 
-* tts model, virsion model(moe model), language model \
+* tts model, virsion model(moe model), language model
     1. Use DeepSeek-R1 as the inference language model
     2. Deployment Reasoning Optimization-vllm
     3. Fine tuning-RL
 
-* task plan agent \
+* task plan agent
     1. tools sdk
     2. rag + cot + workflow + rl-online
+    3. mcp + skills
 
 ## plan - v0.1.0
 
@@ -32,3 +34,10 @@
 ### backend end
     * rust, cargo, devcontainer, microservices
     * docker
+
+
+### misc
+
+* use node 22
+* config proxy
+* start with NO_PROXY=localhost,127.0.0.1 npm run tauri:dev on wsl2

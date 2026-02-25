@@ -25,3 +25,6 @@ tauri = { version = "2.5.0", features = [] }
 tauri-plugin-log = "2.0.0-rc"
 sentry = "0.36.0"
 sysinfo = "0.35.2"
+
+[profile.dev]
+incremental = true
