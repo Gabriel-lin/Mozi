@@ -1,0 +1,70 @@
+{
+  "app": {
+    "title": "Mozi",
+    "description": "一个基于 Tauri 的应用"
+  },
+  "theme": {
+    "current": "当前主题",
+    "system": "系统",
+    "light": "亮色",
+    "dark": "暗夜"
+  },
+  "about": {
+    "title": "关于 Mozi",
+    "version": "版本"
+  },
+  "profile": {
+    "title": "个人资料设置",
+    "description": "管理您的个人信息和工作区设置",
+    "userInfo": "用户信息",
+    "github": "GitHub 账户",
+    "workspace": "工作区",
+    "addWorkspace": "添加工作区",
+    "name": "用户名",
+    "email": "邮箱",
+    "phone": "联系电话",
+    "notSet": "未设置",
+    "language": "语言",
+    "save": "保存",
+    "cancel": "取消",
+    "githubConnected": "已绑定 GitHub 账户",
+    "githubNotConnected": "未绑定 GitHub 账户",
+    "githubAuth": "GitHub 授权",
+    "githubDisconnect": "解除绑定",
+    "githubAuthTip": "点击\"GitHub 授权\"将通过 OAuth 方式连接您的 GitHub 账户",
+    "active": "活跃",
+    "inactive": "非活跃",
+    "localType": "本地",
+    "remoteType": "远程"
+  },
+  "menu": {
+    "file": "文件",
+    "edit": "编辑",
+    "view": "视图",
+    "help": "帮助",
+    "preferences": "偏好",
+    "profile": "个人资料",
+    "quit": "退出",
+    "reload": "重新加载",
+    "fullscreen": "全屏",
+    "exitFullscreen": "退出全屏",
+    "about": "关于",
+    "darkTheme": "暗夜主题",
+    "lightTheme": "亮色主题",
+    "systemTheme": "系统主题"
+  },
+  "common": {
+    "confirm": "确认",
+    "cancel": "取消",
+    "save": "保存",
+    "delete": "删除",
+    "edit": "编辑",
+    "close": "关闭"
+  },
+  "window": {
+    "minimize": "最小化",
+    "maximize": "最大化",
+    "restore": "还原",
+    "close": "关闭"
+  }
+}

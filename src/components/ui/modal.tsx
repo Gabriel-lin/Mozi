@@ -19,14 +19,14 @@ const Modal = ({ open, onOpenChange, children, className }: ModalProps) => {
     >
       {/* 背景遮罩 */}
       <div
-        className="fixed inset-0 animate-in fade-in-0"
+        className="fixed inset-0 bg-transparent dark:bg-black/70 animate-in fade-in-0"
         onClick={() => onOpenChange(false)}
       />
       
       {/* 模态框内容 */}
       <div
         className={cn(
-          "relative z-50 w-full max-w-lg bg-white border rounded-lg shadow-lg p-6 animate-in fade-in-0 zoom-in-95",
+          "relative z-50 w-full max-w-lg bg-background border border-border rounded-lg shadow-lg p-6 animate-in fade-in-0 zoom-in-95 dark:shadow-2xl",
           className
         )}
         onClick={(e) => e.stopPropagation()}
@@ -34,7 +34,7 @@ const Modal = ({ open, onOpenChange, children, className }: ModalProps) => {
         {children}
         <button
           onClick={() => onOpenChange(false)}
-          className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none"
+          className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none dark:text-foreground"
         >
           <X className="h-4 w-4" />
           <span className="sr-only">关闭</span>
@@ -50,7 +50,7 @@ const ModalHeader = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex flex-col space-y-1.5 text-center sm:text-left",
+      "flex flex-col space-y-1.5 text-center sm:text-left dark:text-foreground",
       className
     )}
     {...props}
@@ -64,7 +64,7 @@ const ModalFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
+      "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 dark:text-foreground",
       className
     )}
     {...props}
@@ -79,7 +79,7 @@ const ModalTitle = React.forwardRef<
   <h2
     ref={ref}
     className={cn(
-      "text-lg font-semibold leading-none tracking-tight",
+      "text-lg font-semibold leading-none tracking-tight dark:text-foreground",
       className
     )}
     {...props}

@@ -1,0 +1,70 @@
+{
+  "app": {
+    "title": "Mozi",
+    "description": "A Tauri-based application"
+  },
+  "theme": {
+    "current": "Current theme",
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark"
+  },
+  "about": {
+    "title": "About Mozi",
+    "version": "Version"
+  },
+  "profile": {
+    "title": "Profile Settings",
+    "description": "Manage your personal information and workspace settings",
+    "userInfo": "User Info",
+    "github": "GitHub Account",
+    "workspace": "Workspace",
+    "addWorkspace": "Add Workspace",
+    "name": "Username",
+    "email": "Email",
+    "phone": "Phone",
+    "notSet": "Not set",
+    "language": "Language",
+    "save": "Save",
+    "cancel": "Cancel",
+    "githubConnected": "GitHub Account Connected",
+    "githubNotConnected": "GitHub Account Not Connected",
+    "githubAuth": "GitHub Auth",
+    "githubDisconnect": "Disconnect",
+    "githubAuthTip": "Click \"GitHub Auth\" to connect your GitHub account via OAuth",
+    "active": "Active",
+    "inactive": "Inactive",
+    "localType": "Local",
+    "remoteType": "Remote"
+  },
+  "menu": {
+    "file": "File",
+    "edit": "Edit",
+    "view": "View",
+    "help": "Help",
+    "preferences": "Preferences",
+    "profile": "Profile",
+    "quit": "Quit",
+    "reload": "Reload",
+    "fullscreen": "Fullscreen",
+    "exitFullscreen": "Exit Fullscreen",
+    "about": "About",
+    "darkTheme": "Dark Theme",
+    "lightTheme": "Light Theme",
+    "systemTheme": "System Theme"
+  },
+  "common": {
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close"
+  },
+  "window": {
+    "minimize": "Minimize",
+    "maximize": "Maximize",
+    "restore": "Restore",
+    "close": "Close"
+  }
+}

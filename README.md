@@ -7,6 +7,12 @@
     2. task planning (general/professional/top-level/low-level),
      and dynamic adjustment (self-correcting with RL)
     3. support text, pictures, voice, and video forms
+    4. agent's factory (workflow, langchain)
+    5. tools （fs/shell/fetch/auto llm/info extraction/log/askUser/sandbox/message channel/sound/visual）
+    6. skills (fetch info/policy/err handing/interactive system/memory)
+    7. context (perception subsys/action subsys/policy subsys)
+    8. subagent
+    9. agent swarm (collaboration/master-slave)
 
 * tts model, virsion model(moe model), language model
     1. Use DeepSeek-R1 as the inference language model
