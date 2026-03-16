@@ -92,9 +92,7 @@ export const useUserStore = create<UserState>((set) => ({
 
   updateWorkspace: (id, updates) =>
     set((state) => ({
-      workspaces: state.workspaces.map((ws) =>
-        ws.id === id ? { ...ws, ...updates } : ws
-      ),
+      workspaces: state.workspaces.map((ws) => (ws.id === id ? { ...ws, ...updates } : ws)),
     })),
 
   removeWorkspace: (id) =>

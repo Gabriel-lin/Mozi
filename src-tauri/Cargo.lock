@@ -2720,10 +2720,10 @@ name = "mozi"
 version = "0.1.0"
 dependencies = [
  "log",
+ "mozi-core",
  "sentry",
  "serde",
  "serde_json",
- "sysinfo",
  "tauri",
  "tauri-build",
  "tauri-plugin-appearance",
@@ -2737,6 +2737,18 @@ dependencies = [
  "tauri-plugin-os",
  "tauri-plugin-process",
  "tauri-plugin-shell",
+]
+
+[[package]]
+name = "mozi-core"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sysinfo",
+ "thiserror 2.0.12",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]
@@ -5675,7 +5687,9 @@ dependencies = [
  "bytes",
  "libc",
  "mio",
+ "parking_lot",
  "pin-project-lite",
+ "signal-hook-registry",
  "socket2 0.5.10",
  "tokio-macros",
  "windows-sys 0.52.0",

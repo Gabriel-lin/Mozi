@@ -44,6 +44,8 @@
     "help": "帮助",
     "preferences": "偏好",
     "profile": "个人资料",
+    "theme": "主题",
+    "language": "语言",
     "quit": "退出",
     "reload": "重新加载",
     "fullscreen": "全屏",
@@ -51,7 +53,13 @@
     "about": "关于",
     "darkTheme": "暗夜主题",
     "lightTheme": "亮色主题",
-    "systemTheme": "系统主题"
+    "systemTheme": "系统主题",
+    "undo": "撤销",
+    "redo": "重做",
+    "cut": "剪切",
+    "copy": "复制",
+    "paste": "粘贴",
+    "selectAll": "全选"
   },
   "common": {
     "confirm": "确认",

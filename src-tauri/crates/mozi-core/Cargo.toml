@@ -1,0 +1,31 @@
+[package]
+name = "mozi-core"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.77.2"
+description = "Mozi agent framework core library"
+authors = ["you"]
+license = "MIT"
+
+[features]
+default = ["full"]
+full = ["agent", "context", "skills", "swarm", "tools", "system", "menu"]
+
+# 各模块可独立开启
+tools = ["dep:uuid", "dep:tokio"]
+skills = []
+context = ["tools"]
+agent = ["tools", "skills", "context"]
+swarm = ["agent", "tools", "context"]
+system = ["dep:sysinfo"]
+menu = []
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2"
+
+# optional
+uuid = { version = "1", features = ["v4"], optional = true }
+tokio = { version = "1", features = ["full"], optional = true }
+sysinfo = { version = "0.35.2", optional = true }

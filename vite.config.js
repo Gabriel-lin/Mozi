@@ -1,36 +1,31 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
-import { fileURLToPath } from 'url';
+import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   plugins: [react()],
-  // prevent vite from obscuring rust errors
   clearScreen: false,
-  // Env variables starting with the item of `envPrefix` will be exposed in tauri's source code through `import.meta.env`.
   envPrefix: ["VITE_", "TAURI_ENV_*"],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),
+      "@mozi/core": path.resolve(__dirname, "packages/core/src/index.ts"),
     },
   },
   optimizeDeps: {
     exclude: ["@tauri-apps/api"],
   },
   build: {
-    // Tauri uses Chromium on Windows and WebKit on macOS and Linux
     target: "chrome105",
-    // don't minify for debug builds
     minify: !process.env.TAURI_ENV_DEBUG ? "esbuild" : false,
-    // produce sourcemaps for debug builds
     sourcemap: !!process.env.TAURI_ENV_DEBUG,
-    chunkSizeWarningLimit: 500, // 将 chunk 大小警告限制提高到 1000 KB
+    chunkSizeWarningLimit: 500,
     rollupOptions: {
       output: {
         manualChunks: {
-          // 手动分割 chunk
           react: ["react", "react-dom"],
           echarts: ["echarts", "echarts-for-react"],
         },
@@ -39,8 +34,7 @@ export default defineConfig({
   },
   server: {
     port: 3000,
-    host: "0.0.0.0", // 允许所有网络接口访问
-    strictPort: true, // 端口被占用时报错
-    // open: true,
-  }
+    host: "0.0.0.0",
+    strictPort: true,
+  },
 });

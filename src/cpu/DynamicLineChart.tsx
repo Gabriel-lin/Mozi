@@ -44,10 +44,7 @@ const DynamicLineChart = () => {
 
   return (
     <div>
-      <ReactECharts
-        option={option}
-        style={{ height: "400px", width: "100%" }}
-      />
+      <ReactECharts option={option} style={{ height: "400px", width: "100%" }} />
     </div>
   );
 };
