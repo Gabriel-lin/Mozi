@@ -1,14 +1,23 @@
 import React, { useState } from "react";
-import {
-  Modal,
-  ModalContent,
-  ModalHeader,
-  ModalTitle,
-  ModalDescription,
-} from "./ui/modal";
+import { Modal, ModalContent, ModalHeader, ModalTitle, ModalDescription } from "./ui/modal";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { Monitor, Server, FolderOpen, Github, ExternalLink, CheckCircle, XCircle, User, Mail, Phone, Pencil, Check, X, Globe } from "lucide-react";
+import {
+  Monitor,
+  Server,
+  FolderOpen,
+  Github,
+  ExternalLink,
+  CheckCircle,
+  XCircle,
+  User,
+  Mail,
+  Phone,
+  Pencil,
+  Check,
+  X,
+  Globe,
+} from "lucide-react";
 import { ProfileSettings, mockProfileSettings } from "../types/profile";
 import { useTranslation } from "react-i18next";
 import { emit } from "@tauri-apps/api/event";
@@ -139,21 +148,23 @@ export function ProfileModal({
                       <div className="flex items-center gap-0.5 mt-1">
                         <Input
                           value={localUserData.username}
-                          onChange={(e) => setLocalUserData({ ...localUserData, username: e.target.value })}
+                          onChange={(e) =>
+                            setLocalUserData({ ...localUserData, username: e.target.value })
+                          }
                           className="h-7 flex-1 bg-background border-input text-sm"
                           autoFocus
                         />
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           className="h-6 w-6 p-0 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950"
                           onClick={() => handleSave("username")}
                         >
                           <Check className="h-3 w-3" />
                         </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           className="h-6 w-6 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
                           onClick={handleCancel}
                         >
@@ -161,13 +172,15 @@ export function ProfileModal({
                         </Button>
                       </div>
                     ) : (
-                      <p className="text-sm font-medium mt-1 text-foreground">{localUserData.username || t("profile.notSet")}</p>
+                      <p className="text-sm font-medium mt-1 text-foreground">
+                        {localUserData.username || t("profile.notSet")}
+                      </p>
                     )}
                   </div>
                   {!editingField && (
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       className="ml-2 h-8 w-8 p-0"
                       onClick={() => handleEdit("username")}
                     >
@@ -188,21 +201,23 @@ export function ProfileModal({
                         <Input
                           type="email"
                           value={localUserData.email}
-                          onChange={(e) => setLocalUserData({ ...localUserData, email: e.target.value })}
+                          onChange={(e) =>
+                            setLocalUserData({ ...localUserData, email: e.target.value })
+                          }
                           className="h-7 flex-1 bg-background border-input text-sm"
                           autoFocus
                         />
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           className="h-6 w-6 p-0 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950"
                           onClick={() => handleSave("email")}
                         >
                           <Check className="h-3 w-3" />
                         </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           className="h-6 w-6 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
                           onClick={handleCancel}
                         >
@@ -210,13 +225,15 @@ export function ProfileModal({
                         </Button>
                       </div>
                     ) : (
-                      <p className="text-sm text-foreground mt-1">{localUserData.email || t("profile.notSet")}</p>
+                      <p className="text-sm text-foreground mt-1">
+                        {localUserData.email || t("profile.notSet")}
+                      </p>
                     )}
                   </div>
                   {!editingField && (
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       className="ml-2 h-8 w-8 p-0"
                       onClick={() => handleEdit("email")}
                     >
@@ -237,21 +254,23 @@ export function ProfileModal({
                         <Input
                           type="tel"
                           value={localUserData.phone}
-                          onChange={(e) => setLocalUserData({ ...localUserData, phone: e.target.value })}
+                          onChange={(e) =>
+                            setLocalUserData({ ...localUserData, phone: e.target.value })
+                          }
                           className="h-7 flex-1 bg-background border-input text-sm"
                           autoFocus
                         />
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           className="h-6 w-6 p-0 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950"
                           onClick={() => handleSave("phone")}
                         >
                           <Check className="h-3 w-3" />
                         </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           className="h-6 w-6 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
                           onClick={handleCancel}
                         >
@@ -259,13 +278,15 @@ export function ProfileModal({
                         </Button>
                       </div>
                     ) : (
-                      <p className="text-sm text-foreground mt-1">{localUserData.phone || t("profile.notSet")}</p>
+                      <p className="text-sm text-foreground mt-1">
+                        {localUserData.phone || t("profile.notSet")}
+                      </p>
                     )}
                   </div>
                   {!editingField && (
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       className="ml-2 h-8 w-8 p-0"
                       onClick={() => handleEdit("phone")}
                     >
@@ -283,7 +304,7 @@ export function ProfileModal({
               <Globe className="h-4 w-4" />
               {t("profile.language")}
             </h3>
-            
+
             <div className="flex items-center gap-2">
               <Button
                 variant={i18n.language === "zh" ? "default" : "outline"}
@@ -322,44 +343,34 @@ export function ProfileModal({
               <Github className="h-4 w-4" />
               {t("profile.github")}
             </h3>
-            
+
             <div className="flex items-center justify-between p-3 rounded-lg border border-border">
               <div className="flex items-center gap-3">
                 <Github className="h-5 w-5 text-foreground" />
                 <div>
                   <p className="text-sm font-medium text-foreground">
-                    {isGitHubConnected ? t("profile.githubConnected") : t("profile.githubNotConnected")}
+                    {isGitHubConnected
+                      ? t("profile.githubConnected")
+                      : t("profile.githubNotConnected")}
                   </p>
                   {isGitHubConnected && storeProfile.github && (
-                    <p className="text-xs text-muted-foreground">
-                      {storeProfile.github}
-                    </p>
+                    <p className="text-xs text-muted-foreground">{storeProfile.github}</p>
                   )}
                 </div>
               </div>
               {isGitHubConnected ? (
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={handleGitHubDisconnect}
-                >
+                <Button variant="outline" size="sm" onClick={handleGitHubDisconnect}>
                   <XCircle className="h-4 w-4 mr-1" />
                   {t("profile.githubDisconnect")}
                 </Button>
               ) : (
-                <Button 
-                  variant="default" 
-                  size="sm"
-                  onClick={handleGitHubConnect}
-                >
+                <Button variant="default" size="sm" onClick={handleGitHubConnect}>
                   <ExternalLink className="h-4 w-4 mr-1" />
                   {t("profile.githubAuth")}
                 </Button>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">
-              {t("profile.githubAuthTip")}
-            </p>
+            <p className="text-xs text-muted-foreground">{t("profile.githubAuthTip")}</p>
           </div>
 
           {/* 工作区设置部分 */}
@@ -374,9 +385,7 @@ export function ProfileModal({
                 <div
                   key={workspace.id}
                   className={`relative p-4 rounded-lg border-2 cursor-pointer transition-all duration-200 hover:shadow-md ${
-                    workspace.isActive
-                      ? "border-primary"
-                      : "border-border hover:border-primary/50"
+                    workspace.isActive ? "border-primary" : "border-border hover:border-primary/50"
                   }`}
                   onClick={() => handleWorkspaceClick(workspace.id)}
                 >
@@ -405,12 +414,12 @@ export function ProfileModal({
                       <p className="font-medium text-foreground">
                         {workspace.name}
                         <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                          {workspace.type === "local" ? t("profile.localType") : t("profile.remoteType")}
+                          {workspace.type === "local"
+                            ? t("profile.localType")
+                            : t("profile.remoteType")}
                         </span>
                       </p>
-                      <p className="text-sm text-muted-foreground">
-                        {workspace.path}
-                      </p>
+                      <p className="text-sm text-muted-foreground">{workspace.path}</p>
                     </div>
                   </div>
                 </div>

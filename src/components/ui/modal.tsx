@@ -1,16 +1,16 @@
-import * as React from "react"
-import { X } from "lucide-react"
-import { cn } from "@/lib/utils"
+import * as React from "react";
+import { X } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface ModalProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  children: React.ReactNode
-  className?: string
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  children: React.ReactNode;
+  className?: string;
 }
 
 const Modal = ({ open, onOpenChange, children, className }: ModalProps) => {
-  if (!open) return null
+  if (!open) return null;
 
   return (
     <div
@@ -22,12 +22,12 @@ const Modal = ({ open, onOpenChange, children, className }: ModalProps) => {
         className="fixed inset-0 bg-transparent dark:bg-black/70 animate-in fade-in-0"
         onClick={() => onOpenChange(false)}
       />
-      
+
       {/* 模态框内容 */}
       <div
         className={cn(
           "relative z-50 w-full max-w-lg bg-background border border-border rounded-lg shadow-lg p-6 animate-in fade-in-0 zoom-in-95 dark:shadow-2xl",
-          className
+          className,
         )}
         onClick={(e) => e.stopPropagation()}
       >
@@ -41,78 +41,56 @@ const Modal = ({ open, onOpenChange, children, className }: ModalProps) => {
         </button>
       </div>
     </div>
-  )
-}
+  );
+};
 
-const ModalHeader = ({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
+const ModalHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
       "flex flex-col space-y-1.5 text-center sm:text-left dark:text-foreground",
-      className
+      className,
     )}
     {...props}
   />
-)
-ModalHeader.displayName = "ModalHeader"
+);
+ModalHeader.displayName = "ModalHeader";
 
-const ModalFooter = ({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
+const ModalFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
       "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 dark:text-foreground",
-      className
+      className,
     )}
     {...props}
   />
-)
-ModalFooter.displayName = "ModalFooter"
+);
+ModalFooter.displayName = "ModalFooter";
 
-const ModalTitle = React.forwardRef<
-  HTMLHeadingElement,
-  React.HTMLAttributes<HTMLHeadingElement>
->(({ className, ...props }, ref) => (
-  <h2
-    ref={ref}
-    className={cn(
-      "text-lg font-semibold leading-none tracking-tight dark:text-foreground",
-      className
-    )}
-    {...props}
-  />
-))
-ModalTitle.displayName = "ModalTitle"
+const ModalTitle = React.forwardRef<HTMLHeadingElement, React.HTMLAttributes<HTMLHeadingElement>>(
+  ({ className, ...props }, ref) => (
+    <h2
+      ref={ref}
+      className={cn(
+        "text-lg font-semibold leading-none tracking-tight dark:text-foreground",
+        className,
+      )}
+      {...props}
+    />
+  ),
+);
+ModalTitle.displayName = "ModalTitle";
 
 const ModalDescription = React.forwardRef<
   HTMLParagraphElement,
   React.HTMLAttributes<HTMLParagraphElement>
 >(({ className, ...props }, ref) => (
-  <p
-    ref={ref}
-    className={cn("text-sm text-muted-foreground", className)}
-    {...props}
-  />
-))
-ModalDescription.displayName = "ModalDescription"
+  <p ref={ref} className={cn("text-sm text-muted-foreground", className)} {...props} />
+));
+ModalDescription.displayName = "ModalDescription";
 
-const ModalContent = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn("", className)} {...props} />
-))
-ModalContent.displayName = "ModalContent"
+const ModalContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => <div ref={ref} className={cn("", className)} {...props} />,
+);
+ModalContent.displayName = "ModalContent";
 
-export {
-  Modal,
-  ModalHeader,
-  ModalFooter,
-  ModalTitle,
-  ModalDescription,
-  ModalContent,
-}
-
+export { Modal, ModalHeader, ModalFooter, ModalTitle, ModalDescription, ModalContent };

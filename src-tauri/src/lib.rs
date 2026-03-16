@@ -1,15 +1,48 @@
-mod menu;
-mod system;
-use menu::{set_current_language, set_current_theme, build_app_menu};
-use system::get_system_info;
-use tauri::{Listener};
+use mozi_core::menu::{set_current_language, set_current_theme};
+use mozi_core::system;
+use tauri::{Listener, Manager};
 use tauri_plugin_appearance::Theme;
+
+// ── Tauri command wrappers（委托给 mozi-core 纯函数） ─────────────────────────
+
+#[tauri::command]
+fn get_system_info() -> system::SystemInfo {
+    system::get_system_info()
+}
+
+#[tauri::command]
+fn get_system_dark_mode() -> bool {
+    system::get_system_dark_mode()
+}
+
+#[tauri::command]
+fn get_os_info() -> system::OsInfo {
+    system::get_os_info()
+}
+
+#[tauri::command]
+fn get_disk_info() -> Vec<system::DiskInfo> {
+    system::get_disk_info()
+}
+
+#[tauri::command]
+fn get_network_info() -> Vec<system::NetworkInterface> {
+    system::get_network_info()
+}
+
+// ── Tauri 应用入口 ───────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut ctx = tauri::generate_context!();
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![get_system_info])
+        .invoke_handler(tauri::generate_handler![
+            get_system_info,
+            get_system_dark_mode,
+            get_os_info,
+            get_disk_info,
+            get_network_info,
+        ])
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_clipboard_manager::init())
@@ -20,7 +53,24 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_appearance::init(ctx.config_mut()))
         .setup(|app| {
-            // 监听主题变更事件，同步到系统
+            use tauri::tray::{TrayIconBuilder, TrayIconEvent};
+
+            let icon = tauri::include_image!("icons/32x32.png");
+
+            TrayIconBuilder::with_id("main")
+                .icon(icon)
+                .tooltip("Mozi")
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click { .. } = event {
+                        let app = tray.app_handle();
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                })
+                .build(app)?;
+
             let app_handle_for_theme = app.handle().clone();
             app.listen("set-theme", move |event: tauri::Event| {
                 let theme_str = event.payload().trim_matches('"');
@@ -33,7 +83,6 @@ pub fn run() {
                 let _ = tauri_plugin_appearance::set_theme(app_handle_for_theme.clone(), theme);
             });
 
-            // 监听语言变更事件
             app.listen("set-language", move |event: tauri::Event| {
                 let lang_str = event.payload().trim_matches('"');
                 match lang_str {
@@ -41,14 +90,6 @@ pub fn run() {
                         set_current_language(lang_str);
                     }
                     _ => {}
-                }
-            });
-
-            // 监听重建菜单事件
-            let app_handle_for_menu = app.handle().clone();
-            app.listen("rebuild-menu", move |_event: tauri::Event| {
-                if let Ok(new_menu) = build_app_menu(&app_handle_for_menu) {
-                    let _ = app_handle_for_menu.set_menu(new_menu);
                 }
             });
 

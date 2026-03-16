@@ -9,7 +9,7 @@
   },
   "private": true,
   "type": "module",
-  "main": "electron.js",
+  "workspaces": ["packages/*"],
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
     "@kuyoonjo/tauri-plugin-appearance": "^0.5.0",
@@ -48,71 +48,34 @@
     "zustand": "^5.0.11"
   },
   "scripts": {
-    "start": "vite",
+    "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "electron": "electron . --no-sandbox",
-    "electron-build": "npm run build && electron-builder",
+    "lint": "eslint src --ext .ts,.tsx",
+    "lint:fix": "eslint src --ext .ts,.tsx --fix && prettier --write \"src/**/*.{ts,tsx,css,json}\"",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
+    "format:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --verbose",
+    "format:all": "npm run lint:fix && npm run format:rust",
     "tauri": "cargo tauri",
     "tauri:dev": "cargo tauri dev",
     "tauri:build": "cargo tauri build"
   },
-  "build": {
-    "appId": "com.example.dynamiclinechart",
-    "productName": "Dynamic Line Chart",
-    "directories": {
-      "output": "dist"
-    },
-    "mac": {
-      "category": "public.app-category.utilities"
-    },
-    "win": {
-      "target": [
-        "nsis",
-        "portable"
-      ]
-    },
-    "linux": {
-      "target": [
-        "AppImage",
-        "deb"
-      ],
-      "maintainer": "Your Name <your.email@example.com>"
-    },
-    "electronDownload": {
-      "cache": "~/.electron"
-    }
-  },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
-  },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
-  },
   "devDependencies": {
+    "@eslint/js": "^9.0.0",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/node": "^24.0.1",
     "@types/react": "^19.1.7",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.5.2",
     "autoprefixer": "^10.4.23",
-    "electron": "^36.4.0",
-    "electron-builder": "^26.0.12",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.0.1",
     "postcss": "^8.5.6",
+    "prettier": "^3.8.1",
     "tailwindcss": "^4.1.18",
     "typescript": "^5.8.3",
+    "typescript-eslint": "^8.57.0",
     "vite": "^6.3.5"
   },
   "optionalDependencies": {

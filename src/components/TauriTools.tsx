@@ -1,10 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useTauriDialog } from "@/components/TauriDialog";
-import {
-  open,
-  save,
-} from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import {
   isPermissionGranted,
   requestPermission,
@@ -202,9 +199,7 @@ export function TauriTools() {
               className="flex flex-col items-start h-auto py-2 px-3"
             >
               <span className="font-medium">{tool.name}</span>
-              <span className="text-xs text-muted-foreground">
-                {tool.description}
-              </span>
+              <span className="text-xs text-muted-foreground">{tool.description}</span>
             </Button>
           ))}
         </div>
