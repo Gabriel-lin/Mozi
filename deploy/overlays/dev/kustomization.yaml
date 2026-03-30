@@ -1,0 +1,48 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: mozi
+
+resources:
+  - ../../base
+
+replicas:
+  - name: auth-service
+    count: 1
+  - name: workspace-service
+    count: 1
+  - name: agent-service
+    count: 1
+  - name: sandbox-service
+    count: 1
+  - name: mcp-service
+    count: 1
+  - name: redis
+    count: 1
+  - name: postgres
+    count: 1
+  - name: vllm
+    count: 1
+
+patches:
+  - target:
+      group: autoscaling
+      version: v2
+      kind: HorizontalPodAutoscaler
+      name: auth-service
+    patch: |-
+      [{"op":"replace","path":"/spec/minReplicas","value":1},{"op":"replace","path":"/spec/maxReplicas","value":1}]
+  - target:
+      group: autoscaling
+      version: v2
+      kind: HorizontalPodAutoscaler
+      name: agent-service
+    patch: |-
+      [{"op":"replace","path":"/spec/minReplicas","value":1},{"op":"replace","path":"/spec/maxReplicas","value":1}]
+  - target:
+      group: autoscaling
+      version: v2
+      kind: HorizontalPodAutoscaler
+      name: sandbox-service
+    patch: |-
+      [{"op":"replace","path":"/spec/minReplicas","value":1},{"op":"replace","path":"/spec/maxReplicas","value":1}]

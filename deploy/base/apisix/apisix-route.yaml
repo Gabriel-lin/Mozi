@@ -1,0 +1,45 @@
+apiVersion: apisix.apache.org/v2
+kind: ApisixRoute
+metadata:
+  name: mozi
+  namespace: mozi
+  labels:
+    app.kubernetes.io/name: mozi-gateway
+    app.kubernetes.io/part-of: mozi
+spec:
+  http:
+    - name: auth
+      match:
+        paths:
+          - /api/v1/auth/*
+      backends:
+        - serviceName: auth-service
+          servicePort: 3001
+    - name: users
+      match:
+        paths:
+          - /api/v1/users/*
+      backends:
+        - serviceName: workspace-service
+          servicePort: 3002
+    - name: workspaces
+      match:
+        paths:
+          - /api/v1/workspaces/*
+      backends:
+        - serviceName: workspace-service
+          servicePort: 3002
+    - name: agents
+      match:
+        paths:
+          - /api/v1/agents/*
+      backends:
+        - serviceName: agent-service
+          servicePort: 3003
+    - name: mcp
+      match:
+        paths:
+          - /api/v1/mcp/*
+      backends:
+        - serviceName: mcp-service
+          servicePort: 3005

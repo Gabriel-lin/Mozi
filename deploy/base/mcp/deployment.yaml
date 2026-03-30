@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-service
+  namespace: mozi
+  labels:
+    app.kubernetes.io/name: mcp-service
+    app.kubernetes.io/part-of: mozi
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mcp-service
+      app.kubernetes.io/part-of: mozi
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mcp-service
+        app.kubernetes.io/part-of: mozi
+    spec:
+      containers:
+        - name: mcp-service
+          image: registry.cn-hangzhou.aliyuncs.com/mozi/mcp-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3005
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: mozi-config
+            - secretRef:
+                name: mozi-secret
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3

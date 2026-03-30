@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState, useRef, useCallback } from "react";
 import { Modal, ModalContent, ModalHeader, ModalTitle, ModalDescription } from "./ui/modal";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -17,11 +17,24 @@ import {
   Check,
   X,
   Globe,
+  Loader2,
+  Copy,
 } from "lucide-react";
-import { ProfileSettings, mockProfileSettings } from "../types/profile";
+import {
+  type ProfileSettings,
+  useUserStore,
+  useAuthStore,
+  DEFAULT_PROFILE,
+  DEFAULT_WORKSPACES,
+} from "@mozi/store";
 import { useTranslation } from "react-i18next";
 import { emit } from "@tauri-apps/api/event";
-import { useUserStore } from "../stores/userStore";
+import {
+  requestDeviceCode,
+  openVerificationPage,
+  pollForAccessToken,
+} from "@/services/github-oauth";
+import { api, ApiError } from "@/services/api";
 
 interface ProfileModalProps {
   open: boolean;
@@ -32,54 +45,23 @@ interface ProfileModalProps {
 export function ProfileModal({
   open,
   onOpenChange,
-  profile = mockProfileSettings,
+  profile = { user: DEFAULT_PROFILE, workspaces: DEFAULT_WORKSPACES },
 }: ProfileModalProps) {
   const { t, i18n } = useTranslation();
 
-  // Use user store
   const {
     profile: storeProfile,
     workspaces: storeWorkspaces,
-    permissions,
-    roles,
-    currentRoleId,
     updateUsername,
     updateEmail,
     updatePhone,
     updateGithub,
+    updateAvatar,
     setActiveWorkspace,
   } = useUserStore();
 
-  const [isGitHubConnected, setIsGitHubConnected] = useState(!!storeProfile.github);
-
-  // Use store data, fallback to profile props if store is not initialized
-  const workspaces = storeWorkspaces.length > 0 ? storeWorkspaces : profile.workspaces;
-
-  const handleWorkspaceClick = (workspaceId: string) => {
-    setActiveWorkspace(workspaceId);
-  };
-
-  const handleGitHubConnect = () => {
-    // GitHub OAuth 3方授权 - 这里模拟打开授权页面
-    const clientId = "your_github_client_id";
-    const redirectUri = encodeURIComponent("http://localhost:1420/oauth/callback");
-    const scope = "user:email,read:user";
-    const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scope}`;
-
-    // 实际项目中应该打开新窗口或使用Tauri的shell打开
-    console.log("Opening GitHub OAuth:", githubAuthUrl);
-
-    // 模拟授权成功后的回调 - 更新 store
-    updateGithub("mozi-user");
-    setIsGitHubConnected(true);
-  };
-
-  const handleGitHubDisconnect = () => {
-    updateGithub("");
-    setIsGitHubConnected(false);
-  };
-
-  // 用户信息编辑状态
+  const session = useAuthStore((s) => s.session);
+  const isGitHubConnected = useMemo(() => !!storeProfile.github, [storeProfile.github]);
   const [editingField, setEditingField] = useState<string | null>(null);
   const [localUserData, setLocalUserData] = useState({
     username: storeProfile.username,
@@ -87,7 +69,83 @@ export function ProfileModal({
     phone: storeProfile.phone,
   });
 
+  const [ghLinking, setGhLinking] = useState<
+    | { step: "idle" }
+    | { step: "polling"; userCode: string; verificationUri: string }
+    | { step: "error"; message: string }
+  >({ step: "idle" });
+  const [copied, setCopied] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const workspaces = storeWorkspaces.length > 0 ? storeWorkspaces : profile.workspaces;
+
+  const handleWorkspaceClick = (workspaceId: string) => {
+    setActiveWorkspace(workspaceId);
+  };
+
+  const handleCopyCode = async (code: string) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {}
+  };
+
+  const handleGitHubConnect = useCallback(async () => {
+    try {
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      const deviceCode = await requestDeviceCode();
+      setGhLinking({
+        step: "polling",
+        userCode: deviceCode.user_code,
+        verificationUri: deviceCode.verification_uri,
+      });
+
+      await openVerificationPage(deviceCode.verification_uri);
+
+      const accessToken = await pollForAccessToken(
+        deviceCode.device_code,
+        deviceCode.interval,
+        deviceCode.expires_in,
+        controller.signal,
+      );
+
+      const user = await api.post<{ github_login: string; avatar?: string }>("/auth/github/link", {
+        access_token: accessToken,
+      });
+      updateGithub(user.github_login);
+      updateAvatar(user.avatar || "");
+      setGhLinking({ step: "idle" });
+    } catch (err) {
+      if ((err as Error).message === "cancelled") {
+        setGhLinking({ step: "idle" });
+        return;
+      }
+      const msg = err instanceof ApiError ? err.code : (err as Error).message;
+      setGhLinking({ step: "error", message: msg });
+    }
+  }, [updateGithub, updateAvatar]);
+
+  const handleGitHubDisconnect = useCallback(async () => {
+    abortRef.current?.abort();
+    setGhLinking({ step: "idle" });
+    try {
+      await api.post("/auth/github/unlink");
+      updateGithub("");
+    } catch (err) {
+      console.error("GitHub unlink failed:", err);
+    }
+  }, [updateGithub]);
+
   const handleEdit = (field: string) => {
+    setLocalUserData({
+      username: storeProfile.username,
+      email: storeProfile.email,
+      phone: storeProfile.phone,
+    });
     setEditingField(field);
   };
 
@@ -354,7 +412,7 @@ export function ProfileModal({
                       : t("profile.githubNotConnected")}
                   </p>
                   {isGitHubConnected && storeProfile.github && (
-                    <p className="text-xs text-muted-foreground">{storeProfile.github}</p>
+                    <p className="text-xs text-muted-foreground">@{storeProfile.github}</p>
                   )}
                 </div>
               </div>
@@ -363,13 +421,60 @@ export function ProfileModal({
                   <XCircle className="h-4 w-4 mr-1" />
                   {t("profile.githubDisconnect")}
                 </Button>
-              ) : (
+              ) : ghLinking.step === "idle" ? (
                 <Button variant="default" size="sm" onClick={handleGitHubConnect}>
                   <ExternalLink className="h-4 w-4 mr-1" />
                   {t("profile.githubAuth")}
                 </Button>
-              )}
+              ) : null}
             </div>
+
+            {ghLinking.step === "polling" && (
+              <div className="p-3 rounded-lg border border-border space-y-3">
+                <p className="text-xs text-muted-foreground text-center">
+                  {t("login.deviceFlowHint")}
+                </p>
+                <div className="flex items-center justify-center gap-2">
+                  <code className="text-lg font-mono font-bold tracking-[0.2em] text-foreground bg-accent/60 px-3 py-1 rounded-lg">
+                    {ghLinking.userCode}
+                  </code>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => handleCopyCode(ghLinking.userCode)}
+                  >
+                    {copied ? (
+                      <Check className="h-3.5 w-3.5 text-emerald-500" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                </div>
+                <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  {t("login.waitingAuth")}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={handleGitHubDisconnect}
+                >
+                  {t("common.cancel")}
+                </Button>
+              </div>
+            )}
+
+            {ghLinking.step === "error" && (
+              <div className="p-3 rounded-lg border border-destructive/30 bg-destructive/5 text-center space-y-2">
+                <p className="text-xs text-destructive">{ghLinking.message}</p>
+                <Button variant="outline" size="sm" onClick={() => setGhLinking({ step: "idle" })}>
+                  {t("login.retry")}
+                </Button>
+              </div>
+            )}
+
             <p className="text-xs text-muted-foreground">{t("profile.githubAuthTip")}</p>
           </div>
 

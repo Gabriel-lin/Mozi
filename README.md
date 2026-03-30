@@ -37,9 +37,11 @@
 ```
 Mozi/
 ├── package.json                ← npm workspace 根（workspaces: ["packages/*"]）
+├── docker-compose.yml          ← 本地开发 Docker Compose（PG + Redis + MinIO + 5服务）
 ├── vite.config.js              ← Vite 构建配置（别名 @、@mozi/core）
 ├── tsconfig.json               ← TypeScript 配置（路径映射）
 ├── tailwind.config.js
+│
 ├── src/                        ← 前端应用（React + Tauri）
 │   ├── App.tsx                 ← 根组件（主题/语言/布局）
 │   ├── components/             ← UI 组件（MenuBar、TitleBar、Dialog、shadcn/ui）
@@ -50,8 +52,31 @@ Mozi/
 │   └── types/                  ← 类型定义
 │
 ├── packages/                   ← 前端 workspace 包
-│   └── core/                   ← @mozi/core — 前端核心库
-│       └── src/                （详见下方「前端核心库」）
+│   └── core/                   ← @mozi/core — 前端核心库（详见下方「前端核心库」）
+│
+├── server/                     ← Python 后端（FastAPI 微服务，uv 管理）
+│   ├── pyproject.toml          ← 项目依赖（uv lock / uv sync）
+│   ├── uv.lock                 ← 锁定文件（可复现构建）
+│   ├── alembic.ini             ← Alembic 迁移配置
+│   ├── alembic/                ← 数据库迁移版本
+│   ├── scripts/seed.py         ← 种子数据脚本
+│   ├── shared/                 ← 共享层
+│   │   ├── config.py           ← Pydantic Settings 环境变量
+│   │   ├── database.py         ← SQLAlchemy 2.0 async 引擎
+│   │   ├── security.py         ← JWT / 密码哈希
+│   │   ├── dependencies.py     ← FastAPI 依赖注入
+│   │   ├── models/             ← SQLAlchemy ORM 模型（7 张表）
+│   │   └── schemas/            ← Pydantic v2 请求/响应 Schema
+│   └── services/               ← 5 个微服务
+│       ├── auth/               ← 认证服务（GitHub OAuth + JWT）— :3001
+│       ├── workspace/          ← 工作区服务（用户/角色/RBAC）— :3002
+│       ├── agent/              ← Agent 服务（CRUD + 调度）— :3003
+│       ├── sandbox/            ← 沙箱服务（Celery Worker + LangChain）
+│       └── mcp/                ← MCP 服务（Server + Gateway）— :3005
+│
+├── deploy/                     ← Kubernetes 部署清单（Kustomize）
+│   ├── base/                   ← 基础资源（Deployment / Service / HPA / StatefulSet）
+│   └── overlays/               ← 环境覆盖（dev / prod）
 │
 └── src-tauri/                  ← Rust Cargo workspace 根
     ├── Cargo.toml              ← workspace 定义 + mozi 应用 crate
@@ -67,7 +92,7 @@ Mozi/
 
 ## 前端核心库 — `@mozi/core`
 
-> `packages/core/` · npm workspace 成员 · 框架无关的纯 TypeScript 库
+> `packages/core/` · npm workspace 成员 · 框架无关的纯 TypeScript 库（无 `src/` 中间层，模块直接平铺在 `core/` 下）
 
 ### 模块总览
 
@@ -85,7 +110,7 @@ Mozi/
 ### 目录结构
 
 ```
-packages/core/src/
+packages/core/
 ├── index.ts                     ← 统一入口（re-export 全部模块）
 │
 ├── errors/                      ← 异常处理
@@ -202,7 +227,7 @@ import { WorkflowEngine, NodeType } from "@mozi/core/workflow";
 import { AgentFactory } from "@mozi/core/agent";
 import { QdrantDriver } from "@mozi/core/storage";
 
-// 或统一入口
+// 或统一入口（从 packages/core/index.ts re-export）
 import { Logger, PluginManager, WorkflowEngine } from "@mozi/core";
 ```
 
@@ -422,24 +447,173 @@ Swarm trait  继承：AgentRegistrar + ToolRegistrar + ContextRegistrar
 
 ## Technology Stack
 
-### Frontend
+### Frontend (Desktop Client)
 * React 19, Tailwind CSS 4, Zustand, shadcn/ui, Vite 6
 * ECharts, react-hook-form + Zod, i18next
 * `@mozi/core` — 框架无关核心库（npm workspace）
+* Tauri 2 (Rust) — 桌面 shell
 
-### Backend
-* Rust, Tauri 2, Cargo workspace
+### Backend (Python Microservices)
+* **FastAPI** — 异步 Web 框架（auth / workspace / agent / mcp 四个 HTTP 服务）
+* **SQLAlchemy 2.0** (async) + **Alembic** — ORM + 数据库迁移
+* **Celery + Redis** — 异步任务队列（sandbox-service）
+* **LangChain + LangGraph** — Agent 编排与执行
+* **vLLM** — 自部署 LLM 推理（OpenAI 兼容 API）
+* **MCP (Model Context Protocol)** — Streamable HTTP，Server + Gateway
+* **PostgreSQL 16 + pgvector** — 关系型 + 向量存储
+* **MinIO** — 对象存储
+* **uv** — Python 环境管理与依赖锁定
+
+### Rust Core
 * `mozi-core` — 纯 Rust 核心库（feature flags 按需启用）
 * sysinfo, thiserror, tokio, uuid, serde
 
 ### Infrastructure
-* Docker, DevContainer
-* Microservices, WASM
+* Kubernetes (Aliyun ACK) + Kustomize
+* APISIX Ingress Controller — API 网关
+* Docker / Docker Compose — 本地开发
+* Prometheus + Grafana + Loki — 可观测性
 
 ---
 
 ## Development
 
-> * Node 22 required
-> * Configure proxy if needed
-> * Start with `NO_PROXY=localhost,127.0.0.1 npm run tauri:dev` on WSL2
+### 环境要求
+
+| 工具 | 版本 |
+|------|------|
+| Node.js | >= 22 |
+| Python | >= 3.12 |
+| uv | >= 0.6 |
+| Rust | stable |
+| Docker & Docker Compose | latest |
+
+### 快速开始
+
+```bash
+# 1. 克隆项目
+git clone <repo-url> && cd Mozi
+
+# 2. 安装前端依赖
+npm install
+
+# 3. 安装后端依赖（uv 自动创建 .venv）
+cd server && uv sync && cd ..
+
+# 4. 复制后端环境变量
+cp server/.env.example server/.env
+
+# 5. 启动基础设施（PostgreSQL + Redis + MinIO）
+docker compose up -d postgres redis minio
+
+# 6. 运行数据库迁移 & 种子数据
+cd server
+uv run alembic upgrade head
+uv run python -m scripts.seed
+cd ..
+
+# 7. 启动 Tauri 桌面应用（前端）
+NO_PROXY=localhost,127.0.0.1 npm run tauri:dev
+```
+
+### 后端服务启动
+
+每个服务独立运行，也可通过 Docker Compose 一键启动。
+
+#### 方式一：逐个启动（开发调试推荐）
+
+```bash
+cd server
+
+# auth-service — :3001
+uv run uvicorn services.auth.main:app --reload --port 3001
+
+# workspace-service — :3002
+uv run uvicorn services.workspace.main:app --reload --port 3002
+
+# agent-service — :3003
+uv run uvicorn services.agent.main:app --reload --port 3003
+
+# mcp-service — :3005
+uv run uvicorn services.mcp.main:app --reload --port 3005
+
+# sandbox-worker（Celery 异步任务）
+uv run celery -A services.sandbox.main:celery_app worker -Q agent-runs -c 2 --loglevel=info
+```
+
+#### 方式二：Docker Compose 一键启动
+
+```bash
+# 启动所有服务（含 PG / Redis / MinIO）
+docker compose up -d
+
+# 查看日志
+docker compose logs -f auth-service
+
+# 停止
+docker compose down
+```
+
+### 数据库管理
+
+```bash
+cd server
+
+# 创建新迁移文件
+uv run alembic revision --autogenerate -m "描述"
+
+# 执行迁移
+uv run alembic upgrade head
+
+# 回滚一步
+uv run alembic downgrade -1
+
+# 运行种子脚本
+uv run python -m scripts.seed
+```
+
+### 代码质量
+
+```bash
+cd server
+
+# Lint（ruff）
+uv run ruff check .
+
+# 自动修复
+uv run ruff check --fix .
+
+# 格式化
+uv run ruff format .
+
+# 运行测试
+uv run pytest
+```
+
+### K8s 部署
+
+```bash
+# 开发环境（所有服务 1 副本）
+kubectl apply -k deploy/overlays/dev
+
+# 生产环境（HPA 自动扩缩）
+kubectl apply -k deploy/overlays/prod
+```
+
+### npm scripts 速查
+
+| 命令 | 说明 |
+|------|------|
+| `npm run dev` | 启动 Vite 前端开发服务器 |
+| `npm run tauri:dev` | 启动 Tauri 桌面应用（含前端） |
+| `npm run server:dev` | 启动 auth-service（快速后端调试） |
+| `npm run dev:all` | 同时启动前端 + auth-service |
+| `npm run docker:up` | `docker compose up -d` |
+| `npm run docker:down` | `docker compose down` |
+| `npm run db:migrate` | `alembic upgrade head` |
+| `npm run db:revision` | `alembic revision --autogenerate` |
+| `npm run db:seed` | 运行种子脚本 |
+| `npm run build` | 构建前端产物 |
+| `npm run tauri:build` | 构建 Tauri 桌面应用 |
+
+> **WSL2 提示**: 使用 `NO_PROXY=localhost,127.0.0.1` 前缀启动 Tauri 开发服务器

@@ -16,10 +16,10 @@
     "sourceMap": true,
     "baseUrl": ".",
     "paths": {
-      "@mozi/core": ["src/index.ts"],
-      "@mozi/core/*": ["src/*/index.ts"]
+      "@mozi/core": ["index.ts"],
+      "@mozi/core/*": ["*/index.ts"]
     }
   },
-  "include": ["src"],
+  "include": ["."],
   "exclude": ["node_modules", "dist"]
 }

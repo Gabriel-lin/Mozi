@@ -1,9 +1,11 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
 
 import reportWebVitals from './reportWebVitals';
 
 import App from './App';
+import { AuthGuard } from './components/AuthGuard';
 
 import './i18n';
 import './index.css';
@@ -11,7 +13,11 @@ import './index.css';
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <App />
+    <BrowserRouter>
+      <AuthGuard>
+        <App />
+      </AuthGuard>
+    </BrowserRouter>
   </React.StrictMode>
 );
 

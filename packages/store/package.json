@@ -1,0 +1,20 @@
+{
+  "name": "@mozi/store",
+  "version": "0.1.0",
+  "description": "Mozi persistent store — user preferences, app settings with Tauri Store backend",
+  "type": "module",
+  "main": "index.ts",
+  "types": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./user": "./user.ts",
+    "./auth": "./auth.ts",
+    "./backend": "./storage-backend.ts"
+  },
+  "files": ["*.ts"],
+  "license": "MIT",
+  "peerDependencies": {
+    "zustand": "^5.0.11",
+    "@tauri-apps/plugin-store": "^2.2.0"
+  }
+}

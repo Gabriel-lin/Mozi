@@ -70,6 +70,7 @@
         { "url": "http://**" }
       ]
     },
-    "appearance:default"
+    "appearance:default",
+    "store:default"
   ]
 }

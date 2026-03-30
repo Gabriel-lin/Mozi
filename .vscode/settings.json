@@ -1,0 +1,12 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/server/.venv/bin/python",
+  "python.languageServer": "None",
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/server"
+  ],
+  "python.analysis.autoSearchPaths": true,
+  "python.analysis.diagnosticMode": "openFilesOnly",
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.python"
+  }
+}
