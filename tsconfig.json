@@ -16,11 +16,13 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@mozi/core": ["packages/core/src/index.ts"],
-      "@mozi/core/*": ["packages/core/src/*/index.ts"],
+      "@mozi/core": ["packages/core/index.ts"],
+      "@mozi/core/*": ["packages/core/*/index.ts"],
+      "@mozi/store": ["packages/store/index.ts"],
+      "@mozi/store/*": ["packages/store/*.ts"],
       "@tauri-apps/api/*": ["node_modules/@tauri-apps/api/*"]
     }
   },
-  "include": ["src", "packages/core/src"],
+  "include": ["src", "packages/core", "packages/store"],
   "exclude": ["node_modules"]
 }

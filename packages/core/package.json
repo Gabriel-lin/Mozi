@@ -3,19 +3,60 @@
   "version": "0.1.0",
   "description": "Mozi core library — errors, logger, plugin, workflow, agent, data, cli, storage",
   "type": "module",
-  "main": "src/index.ts",
-  "types": "src/index.ts",
+  "main": "index.ts",
+  "types": "index.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./errors": "./src/errors/index.ts",
-    "./logger": "./src/logger/index.ts",
-    "./plugin": "./src/plugin/index.ts",
-    "./workflow": "./src/workflow/index.ts",
-    "./agent": "./src/agent/index.ts",
-    "./data": "./src/data/index.ts",
-    "./cli": "./src/cli/index.ts",
-    "./storage": "./src/storage/index.ts"
+    ".": "./index.ts",
+    "./errors": "./errors/index.ts",
+    "./logger": "./logger/index.ts",
+    "./plugin": "./plugin/index.ts",
+    "./workflow": "./workflow/index.ts",
+    "./agent": "./agent/index.ts",
+    "./data": "./data/index.ts",
+    "./cli": "./cli/index.ts",
+    "./storage": "./storage/index.ts"
   },
-  "files": ["src"],
-  "license": "MIT"
+  "bin": {
+    "mozi": "./cli/bin.ts"
+  },
+  "scripts": {
+    "mozi": "tsx cli/bin.ts"
+  },
+  "files": [
+    "agent",
+    "cli",
+    "data",
+    "errors",
+    "logger",
+    "plugin",
+    "storage",
+    "workflow",
+    "index.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "date-fns": "^4.1.0",
+    "i18next": "^25.8.13",
+    "zod": "^4.3.4",
+    "zustand": "^5.0.11"
+  },
+  "peerDependenciesMeta": {
+    "zod": {
+      "optional": true
+    },
+    "date-fns": {
+      "optional": true
+    },
+    "i18next": {
+      "optional": true
+    },
+    "zustand": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "commander": "^14.0.3",
+    "enquirer": "^2.4.1"
+  }
 }

@@ -30,6 +30,37 @@ fn get_network_info() -> Vec<system::NetworkInterface> {
     system::get_network_info()
 }
 
+/// WSL2 环境下 xdg-open 无法打开 Windows 浏览器，需要使用 cmd.exe 桥接。
+#[tauri::command]
+fn open_url(url: String) -> Result<(), String> {
+    fn is_wsl() -> bool {
+        std::fs::read_to_string("/proc/version")
+            .map(|v| v.to_lowercase().contains("microsoft"))
+            .unwrap_or(false)
+    }
+
+    let result = if is_wsl() {
+        std::process::Command::new("cmd.exe")
+            .args(["/c", "start", &url.replace('&', "^&")])
+            .spawn()
+    } else {
+        #[cfg(target_os = "linux")]
+        {
+            std::process::Command::new("xdg-open").arg(&url).spawn()
+        }
+        #[cfg(target_os = "macos")]
+        {
+            std::process::Command::new("open").arg(&url).spawn()
+        }
+        #[cfg(target_os = "windows")]
+        {
+            std::process::Command::new("cmd").args(["/c", "start", &url]).spawn()
+        }
+    };
+
+    result.map(|_| ()).map_err(|e| e.to_string())
+}
+
 // ── Tauri 应用入口 ───────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -42,6 +73,7 @@ pub fn run() {
             get_os_info,
             get_disk_info,
             get_network_info,
+            open_url,
         ])
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
@@ -51,6 +83,7 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_appearance::init(ctx.config_mut()))
         .setup(|app| {
             use tauri::tray::{TrayIconBuilder, TrayIconEvent};
