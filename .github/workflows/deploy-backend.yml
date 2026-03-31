@@ -1,0 +1,184 @@
+name: Deploy Backend Services
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "server/**"
+      - "docker-compose.prod.yml"
+      - ".github/workflows/deploy-backend.yml"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "部署环境"
+        required: true
+        default: "production"
+        type: choice
+        options:
+          - production
+          - staging
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository }}
+
+jobs:
+  # ──────────────────────────────────────────────
+  # 阶段一：构建并推送所有微服务 Docker 镜像
+  # ──────────────────────────────────────────────
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        service:
+          - name: auth-service
+            dockerfile: server/services/auth/Dockerfile
+          - name: workspace-service
+            dockerfile: server/services/workspace/Dockerfile
+          - name: agent-service
+            dockerfile: server/services/agent/Dockerfile
+          - name: sandbox-worker
+            dockerfile: server/services/sandbox/Dockerfile
+          - name: mcp-service
+            dockerfile: server/services/mcp/Dockerfile
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_PREFIX }}/${{ matrix.service.name }}
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./server
+          file: ${{ matrix.service.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ──────────────────────────────────────────────
+  # 阶段二：SSH 到目标服务器执行部署
+  # ──────────────────────────────────────────────
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'production' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Copy deployment files to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_SSH_PORT || 22 }}
+          source: "docker-compose.prod.yml,deploy/scripts/deploy.sh,deploy/nginx/nginx.conf,deploy/nginx/proxy_params.conf"
+          target: /opt/mozi
+          overwrite: true
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_SSH_PORT || 22 }}
+          envs: IMAGE_TAG,GITHUB_REPOSITORY
+          script: |
+            cd /opt/mozi
+            chmod +x deploy/scripts/deploy.sh
+            export IMAGE_TAG=${IMAGE_TAG}
+            export GITHUB_REPOSITORY=${GITHUB_REPOSITORY}
+            ./deploy/scripts/deploy.sh
+
+  # ──────────────────────────────────────────────
+  # 阶段三：部署后健康检查
+  # ──────────────────────────────────────────────
+  health-check:
+    needs: deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Wait for services to start
+        run: sleep 30
+
+      - name: Health check via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_SSH_PORT || 22 }}
+          script: |
+            cd /opt/mozi
+            echo "==> 检查容器运行状态 ..."
+            docker compose -f docker-compose.prod.yml ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
+
+            echo ""
+            echo "==> 检查服务健康状态 ..."
+            FAILED=0
+
+            check_service() {
+              local name=$1
+              local port=$2
+              if curl -sf --max-time 5 "http://127.0.0.1:${port}/health" > /dev/null 2>&1 || \
+                 curl -sf --max-time 5 "http://127.0.0.1:${port}/docs" > /dev/null 2>&1; then
+                echo "  ✓ ${name} (port ${port}) - 正常"
+              else
+                echo "  ✗ ${name} (port ${port}) - 异常"
+                FAILED=1
+              fi
+            }
+
+            check_service "auth-service"      3001
+            check_service "workspace-service"  3002
+            check_service "agent-service"      3003
+            check_service "mcp-service"        3005
+
+            echo ""
+            if docker compose -f docker-compose.prod.yml ps | grep -q "unhealthy\|Exit"; then
+              echo "⚠ 存在异常容器："
+              docker compose -f docker-compose.prod.yml ps | grep -E "unhealthy|Exit"
+              FAILED=1
+            fi
+
+            if [ $FAILED -eq 1 ]; then
+              echo ""
+              echo "==> 最近的容器日志（仅显示最后 20 行）："
+              docker compose -f docker-compose.prod.yml logs --tail=20
+              exit 1
+            fi
+
+            echo ""
+            echo "==> 所有服务运行正常 ✓"
