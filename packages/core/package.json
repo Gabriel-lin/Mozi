@@ -11,6 +11,26 @@
     "./logger": "./logger/index.ts",
     "./plugin": "./plugin/index.ts",
     "./workflow": "./workflow/index.ts",
+    "./workflow/views": "./workflow/views/index.ts",
+    "./workflow/views/types": "./workflow/views/types/index.ts",
+    "./workflow/views/types/common": "./workflow/views/types/common.ts",
+    "./workflow/views/types/node": "./workflow/views/types/node.ts",
+    "./workflow/views/types/edge": "./workflow/views/types/edge.ts",
+    "./workflow/views/types/layout": "./workflow/views/types/layout.ts",
+    "./workflow/views/types/history": "./workflow/views/types/history.ts",
+    "./workflow/views/types/plugin": "./workflow/views/types/plugin.ts",
+    "./workflow/views/types/context-menu": "./workflow/views/types/context-menu.ts",
+    "./workflow/views/utils": "./workflow/views/utils/index.ts",
+    "./workflow/views/utils/id": "./workflow/views/utils/id.ts",
+    "./workflow/views/utils/geometry": "./workflow/views/utils/geometry.ts",
+    "./workflow/views/utils/arrows": "./workflow/views/utils/arrows.ts",
+    "./workflow/views/utils/layout": "./workflow/views/utils/layout.ts",
+    "./workflow/views/utils/serialization": "./workflow/views/utils/serialization.ts",
+    "./workflow/views/nodes": "./workflow/views/nodes/index.ts",
+    "./workflow/views/edges": "./workflow/views/edges/index.ts",
+    "./workflow/views/hooks": "./workflow/views/hooks/index.ts",
+    "./workflow/views/plugins": "./workflow/views/plugins/index.ts",
+    "./workflow/views/nav": "./workflow/views/nav/index.ts",
     "./agent": "./agent/index.ts",
     "./data": "./data/index.ts",
     "./cli": "./cli/index.ts",
@@ -35,12 +55,18 @@
   ],
   "license": "MIT",
   "peerDependencies": {
+    "@xyflow/react": "^12.8.4",
     "date-fns": "^4.1.0",
     "i18next": "^25.8.13",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
     "zod": "^4.3.4",
     "zustand": "^5.0.11"
   },
   "peerDependenciesMeta": {
+    "@xyflow/react": {
+      "optional": true
+    },
     "zod": {
       "optional": true
     },
@@ -48,6 +74,12 @@
       "optional": true
     },
     "i18next": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
       "optional": true
     },
     "zustand": {

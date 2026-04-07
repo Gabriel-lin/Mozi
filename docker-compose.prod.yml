@@ -149,6 +149,28 @@ services:
         limits:
           memory: 1G
 
+  workflow-service:
+    image: ghcr.io/${GITHUB_REPOSITORY:-gabriel-lin/mozi}/workflow-service:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3004:3004"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    environment:
+      MOZI_DATABASE_URL: postgresql+asyncpg://${MOZI_DB_USER:-mozi}:${MOZI_DB_PASSWORD}@postgres:5432/${MOZI_DB_NAME:-mozi}
+      MOZI_REDIS_URL: redis://redis:6379
+      MOZI_JWT_SECRET: ${MOZI_JWT_SECRET}
+      MOZI_ENV: production
+    networks:
+      - mozi-net
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
   sandbox-worker:
     image: ghcr.io/${GITHUB_REPOSITORY:-gabriel-lin/mozi}/sandbox-worker:${IMAGE_TAG:-latest}
     restart: unless-stopped
@@ -207,6 +229,7 @@ services:
       - auth-service
       - workspace-service
       - agent-service
+      - workflow-service
       - mcp-service
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:80/health"]

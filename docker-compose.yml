@@ -135,6 +135,56 @@ services:
     networks:
       - mozi-net
 
+  workflow-service:
+    build:
+      context: ./server
+      dockerfile: services/workflow/Dockerfile
+    ports:
+      - "3004:3004"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+    env_file:
+      - server/.env
+    environment:
+      MOZI_DATABASE_URL: postgresql+asyncpg://mozi:mozi_secret@postgres:5432/mozi
+      MOZI_REDIS_URL: redis://redis:6379
+      MOZI_ENV: development
+      MOZI_DEBUG: "true"
+      UV_LINK_MODE: copy
+    volumes:
+      - ./server:/app
+      - /app/.venv
+    command: uv run uvicorn services.workflow.main:app --host 0.0.0.0 --port 3004 --reload
+    networks:
+      - mozi-net
+
+  workflow-worker:
+    build:
+      context: ./server
+      dockerfile: services/workflow/Dockerfile
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_started
+    env_file:
+      - server/.env
+    environment:
+      MOZI_DATABASE_URL: postgresql+asyncpg://mozi:mozi_secret@postgres:5432/mozi
+      MOZI_REDIS_URL: redis://redis:6379
+      MOZI_ENV: development
+      MOZI_DEBUG: "true"
+      UV_LINK_MODE: copy
+    volumes:
+      - ./server:/app
+      - /app/.venv
+    command: uv run celery -A services.workflow.worker:celery_app worker -Q workflow-runs -c 2 --loglevel=info
+    networks:
+      - mozi-net
+
   sandbox-worker:
     build:
       context: ./server

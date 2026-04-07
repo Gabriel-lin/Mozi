@@ -13,6 +13,8 @@ replicas:
     count: 1
   - name: agent-service
     count: 1
+  - name: workflow-service
+    count: 1
   - name: sandbox-service
     count: 1
   - name: mcp-service
@@ -37,6 +39,13 @@ patches:
       version: v2
       kind: HorizontalPodAutoscaler
       name: agent-service
+    patch: |-
+      [{"op":"replace","path":"/spec/minReplicas","value":1},{"op":"replace","path":"/spec/maxReplicas","value":1}]
+  - target:
+      group: autoscaling
+      version: v2
+      kind: HorizontalPodAutoscaler
+      name: workflow-service
     patch: |-
       [{"op":"replace","path":"/spec/minReplicas","value":1},{"op":"replace","path":"/spec/maxReplicas","value":1}]
   - target:

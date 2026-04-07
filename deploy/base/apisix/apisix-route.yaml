@@ -36,6 +36,13 @@ spec:
       backends:
         - serviceName: agent-service
           servicePort: 3003
+    - name: workflows
+      match:
+        paths:
+          - /api/v1/workflows/*
+      backends:
+        - serviceName: workflow-service
+          servicePort: 3004
     - name: mcp
       match:
         paths:

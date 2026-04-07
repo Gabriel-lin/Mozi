@@ -5,6 +5,7 @@ from .agent import Agent, AgentRun
 from .embedding import Embedding
 from .session import Session
 from .mcp_server import McpServer
+from .workflow import Workflow, WorkflowVersion, WorkflowRun
 
 __all__ = [
     "User",
@@ -18,4 +19,7 @@ __all__ = [
     "Embedding",
     "Session",
     "McpServer",
+    "Workflow",
+    "WorkflowVersion",
+    "WorkflowRun",
 ]
