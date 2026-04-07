@@ -69,7 +69,7 @@ fi
 log "滚动更新微服务 ..."
 
 INFRA_SERVICES="postgres redis minio"
-APP_SERVICES="auth-service workspace-service agent-service sandbox-worker mcp-service migrate"
+APP_SERVICES="auth-service workspace-service agent-service workflow-service sandbox-worker mcp-service migrate"
 GATEWAY_SERVICES="nginx certbot"
 
 docker compose -f "${COMPOSE_FILE}" up -d ${INFRA_SERVICES}

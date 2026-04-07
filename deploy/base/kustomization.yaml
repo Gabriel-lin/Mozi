@@ -15,6 +15,9 @@ resources:
   - agent/deployment.yaml
   - agent/service.yaml
   - agent/hpa.yaml
+  - workflow/deployment.yaml
+  - workflow/service.yaml
+  - workflow/hpa.yaml
   - sandbox/deployment.yaml
   - sandbox/hpa.yaml
   - mcp/deployment.yaml

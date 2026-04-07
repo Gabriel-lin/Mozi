@@ -167,6 +167,7 @@ function App() {
             <Route path="/workflow" element={<WorkflowPage />} />
             <Route path="/workflow/create" element={<WorkflowCreatePage />} />
             <Route path="/workflow/edit" element={<WorkflowEditPage />} />
+            <Route path="/workflow/:id/edit" element={<WorkflowEditPage />} />
             <Route path="/workflow/run" element={<WorkflowRunPage />} />
 
             {/* Swarm */}

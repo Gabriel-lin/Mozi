@@ -15,6 +15,7 @@ import shared.models.agent  # noqa: F401
 import shared.models.embedding  # noqa: F401
 import shared.models.session  # noqa: F401
 import shared.models.mcp_server  # noqa: F401
+import shared.models.workflow  # noqa: F401
 
 config = context.config
 

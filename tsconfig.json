@@ -18,6 +18,7 @@
       "@/*": ["src/*"],
       "@mozi/core": ["packages/core/index.ts"],
       "@mozi/core/*": ["packages/core/*/index.ts"],
+      "@mozi/core/workflow/views": ["packages/core/workflow/views/index.ts"],
       "@mozi/store": ["packages/store/index.ts"],
       "@mozi/store/*": ["packages/store/*.ts"],
       "@tauri-apps/api/*": ["node_modules/@tauri-apps/api/*"]

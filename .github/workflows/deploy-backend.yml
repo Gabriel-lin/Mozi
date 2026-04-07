@@ -41,6 +41,8 @@ jobs:
             dockerfile: server/services/workspace/Dockerfile
           - name: agent-service
             dockerfile: server/services/agent/Dockerfile
+          - name: workflow-service
+            dockerfile: server/services/workflow/Dockerfile
           - name: sandbox-worker
             dockerfile: server/services/sandbox/Dockerfile
           - name: mcp-service
@@ -71,7 +73,7 @@ jobs:
             type=ref,event=branch
 
       - name: Build and push image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v5
         with:
           context: ./server
           file: ${{ matrix.service.dockerfile }}
@@ -164,6 +166,7 @@ jobs:
             check_service "auth-service"      3001
             check_service "workspace-service"  3002
             check_service "agent-service"      3003
+            check_service "workflow-service"   3004
             check_service "mcp-service"        3005
 
             echo ""

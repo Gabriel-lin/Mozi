@@ -1,15 +1,122 @@
-import React from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { GitBranch, Plus, ArrowLeft, Play, Settings, ChevronRight, CircleDot } from "lucide-react";
+import { Pagination } from "@/components/Pagination";
+import { workflowApi, type Workflow } from "@/services/workflow";
+import { workspaceApi } from "@/services/workspace";
+import {
+  GitBranch,
+  Plus,
+  ArrowLeft,
+  Play,
+  Settings,
+  ChevronRight,
+  CircleDot,
+  Trash2,
+  Loader2,
+} from "lucide-react";
+
+const STATUS_STYLE: Record<string, string> = {
+  draft: "bg-zinc-400/10 text-zinc-500 dark:text-zinc-400",
+  active: "bg-blue-400/10 text-blue-500 dark:text-blue-400",
+  archived: "bg-amber-400/10 text-amber-600 dark:text-amber-400",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  draft: "Draft",
+  active: "Active",
+  archived: "Archived",
+};
 
 export function WorkflowPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
+  const [pageSize, setPageSize] = useState(20);
+  const [workflows, setWorkflows] = useState<Workflow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [running, setRunning] = useState<string | null>(null);
+
+  useEffect(() => {
+    workspaceApi
+      .list()
+      .then((res) => {
+        const first = res?.workspaces?.[0];
+        if (first) setWorkspaceId(first.id);
+      })
+      .catch(() => {});
+  }, []);
+
+  const fetchWorkflows = useCallback(
+    async (p = 1, ps = pageSize) => {
+      if (!workspaceId) return;
+      try {
+        setLoading(true);
+        const res = await workflowApi.list(workspaceId, p, ps);
+        setWorkflows(res?.workflows ?? []);
+        setTotal(res?.total ?? 0);
+        setPage(res?.page ?? p);
+      } catch {
+        // silently fail – list stays empty
+      } finally {
+        setLoading(false);
+        setInitialized(true);
+      }
+    },
+    [workspaceId, pageSize],
+  );
+
+  const pageRef = React.useRef(page);
+  pageRef.current = page;
+
+  useEffect(() => {
+    fetchWorkflows(pageRef.current);
+  }, [fetchWorkflows]);
+
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (deleting) return;
+    try {
+      setDeleting(id);
+      await workflowApi.delete(id);
+      const nextPage = workflows.length === 1 && page > 1 ? page - 1 : page;
+      await fetchWorkflows(nextPage);
+    } catch {
+      // TODO: toast
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  const handlePageChange = (p: number) => fetchWorkflows(p);
+
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size);
+    fetchWorkflows(1, size);
+  };
+
+  const handleRun = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (running) return;
+    try {
+      setRunning(id);
+      await workflowApi.run(id);
+    } catch {
+      // TODO: toast
+    } finally {
+      setRunning(null);
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto p-6 md:p-8 space-y-8 animate-fade-in">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button
@@ -37,47 +144,135 @@ export function WorkflowPage() {
         </Button>
       </div>
 
-      <div className="rounded-2xl glass premium-shadow overflow-hidden">
-        <div className="group flex items-center gap-4 p-5 hover:bg-accent/30 transition-all duration-200 cursor-pointer">
+      {/* List */}
+      {!initialized ? (
+        <div className="rounded-2xl glass premium-shadow overflow-hidden divide-y divide-border/40">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4 p-5 animate-pulse">
+              <div className="h-11 w-11 rounded-xl bg-muted" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-1/3 rounded bg-muted" />
+                <div className="h-3 w-1/2 rounded bg-muted" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : workflows.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-24 space-y-5">
           <div className="relative">
-            <div className="p-3 rounded-xl bg-gradient-to-br from-sky-300 via-blue-400 to-indigo-500 text-white shadow-lg shadow-blue-400/25">
-              <GitBranch className="h-5 w-5" />
+            <div className="p-5 rounded-2xl bg-gradient-to-br from-sky-300 via-blue-400 to-indigo-500 text-white shadow-xl shadow-blue-400/25">
+              <GitBranch className="h-8 w-8" />
             </div>
+            <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-sky-300 via-blue-400 to-indigo-500 opacity-20 blur-xl" />
           </div>
-          <div className="flex-1 min-w-0 space-y-1">
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold text-foreground truncate">Sample Workflow</h3>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-400/10 text-blue-500 dark:text-blue-400">
-                <CircleDot className="h-2.5 w-2.5" />
-                Pipeline
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-              {t("workflow.sampleDesc", "示例工作流 — 数据处理管道")}
+          <div className="text-center space-y-2">
+            <h3 className="text-base font-semibold text-foreground">{t("nav.workflow")}</h3>
+            <p className="text-sm text-muted-foreground max-w-xs">
+              {t("workflow.empty", "暂无工作流，点击右上角新建")}
             </p>
           </div>
-          <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 p-0 rounded-lg"
-              onClick={() => navigate("/workflow/edit")}
-            >
-              <Settings className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="rounded-lg gap-1.5 h-8"
-              onClick={() => navigate("/workflow/run")}
-            >
-              <Play className="h-3.5 w-3.5" />
-              {t("workflow.run", "运行")}
-            </Button>
-          </div>
-          <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground group-hover:translate-x-0.5 transition-all duration-200" />
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-xl gap-1.5 mt-1"
+            onClick={() => navigate("/workflow/create")}
+          >
+            <Plus className="h-4 w-4" />
+            {t("workflow.create", "新建工作流")}
+          </Button>
         </div>
-      </div>
+      ) : (
+        <div className="relative rounded-2xl glass premium-shadow overflow-y-auto max-h-[calc(100vh-320px)] divide-y divide-border/40">
+          {loading && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-[2px] rounded-2xl">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          )}
+          {workflows.map((wf) => (
+            <div
+              key={wf.id}
+              className="group flex items-center gap-4 p-5 hover:bg-accent/30 transition-all duration-200 cursor-pointer"
+              onClick={() => navigate(`/workflow/${wf.id}/edit`)}
+            >
+              <div className="relative">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-sky-300 via-blue-400 to-indigo-500 text-white shadow-lg shadow-blue-400/25">
+                  <GitBranch className="h-5 w-5" />
+                </div>
+              </div>
+
+              <div className="flex-1 min-w-0 space-y-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold text-foreground truncate">{wf.name}</h3>
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${STATUS_STYLE[wf.status] ?? STATUS_STYLE.draft}`}
+                  >
+                    <CircleDot className="h-2.5 w-2.5" />
+                    {STATUS_LABEL[wf.status] ?? wf.status}
+                  </span>
+                </div>
+                {wf.description && (
+                  <p className="text-xs text-muted-foreground truncate">{wf.description}</p>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 rounded-lg"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/workflow/${wf.id}/edit`);
+                  }}
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 rounded-lg text-destructive hover:text-destructive hover:bg-destructive/10"
+                  disabled={deleting === wf.id}
+                  onClick={(e) => handleDelete(e, wf.id)}
+                >
+                  {deleting === wf.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-lg gap-1.5 h-8"
+                  disabled={running === wf.id}
+                  onClick={(e) => handleRun(e, wf.id)}
+                >
+                  {running === wf.id ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Play className="h-3.5 w-3.5" />
+                  )}
+                  {t("workflow.run", "运行")}
+                </Button>
+              </div>
+
+              <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-muted-foreground group-hover:translate-x-0.5 transition-all duration-200" />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {total > 0 && (
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          total={total}
+          pageSizeOptions={[10, 20, 30]}
+          onPageChange={handlePageChange}
+          onPageSizeChange={handlePageSizeChange}
+        />
+      )}
 
       <div className="flex items-center justify-center py-6">
         <p className="text-xs text-muted-foreground glass px-4 py-2 rounded-full">
