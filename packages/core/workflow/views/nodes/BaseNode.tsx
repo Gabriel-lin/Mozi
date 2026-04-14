@@ -1,134 +1,146 @@
-import React, { memo } from "react";
-import { Handle, Position } from "@xyflow/react";
-import { ViewNodeShape, type HandleConfig } from "../types";
+import React, { memo, useCallback, useEffect, useRef, useState } from "react";
+import { ViewNodeShape } from "../types";
 import type { BaseNodeProps } from "./types";
+import { cn } from "../utils/cn";
+import { renderNodeHandles } from "./renderNodeHandles";
 
-const SHAPE_STYLES: Record<ViewNodeShape, React.CSSProperties> = {
-  [ViewNodeShape.SQUARE]: {
-    borderRadius: 8,
-  },
-  [ViewNodeShape.CIRCLE]: {
-    borderRadius: "50%",
-    aspectRatio: "1 / 1",
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-};
+/** Error popover shown when the error badge is clicked. */
+function ErrorPopover({ message, onClose }: { message: string; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
 
-const positionMap: Record<string, Position> = {
-  left: Position.Left,
-  right: Position.Right,
-  top: Position.Top,
-  bottom: Position.Bottom,
-};
-
-function resolvePosition(pos: string | undefined, fallback: Position): Position {
-  return pos ? positionMap[pos] ?? fallback : fallback;
-}
-
-function renderHandles(
-  handles: HandleConfig[],
-  type: "source" | "target",
-  defaultPosition: Position,
-) {
-  const count = handles.length;
-  return handles.map((h, i) => {
-    const pos = resolvePosition(h.position, defaultPosition);
-    const isVertical = pos === Position.Top || pos === Position.Bottom;
-    const offset = count > 1 ? ((i + 1) / (count + 1)) * 100 : 50;
-
-    const style: React.CSSProperties = isVertical
-      ? { left: `${offset}%` }
-      : { top: `${offset}%` };
-
-    return (
-      <Handle
-        key={h.id}
-        id={h.id}
-        type={type}
-        position={pos}
-        style={{
-          width: 10,
-          height: 10,
-          background: type === "target" ? "#6366f1" : "#22c55e",
-          border: "2px solid #fff",
-          ...style,
-        }}
-        title={h.label}
-      />
-    );
-  });
-}
-
-export const BaseNode = memo(function BaseNode({ data, selected }: BaseNodeProps) {
-  const shape = data.shape ?? ViewNodeShape.SQUARE;
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as HTMLElement)) onClose();
+    };
+    document.addEventListener("mousedown", handler, true);
+    return () => document.removeEventListener("mousedown", handler, true);
+  }, [onClose]);
 
   return (
     <div
-      style={{
-        minWidth: shape === ViewNodeShape.CIRCLE ? 140 : 180,
-        minHeight: shape === ViewNodeShape.CIRCLE ? 140 : undefined,
-        background: "#fff",
-        border: `2px solid ${selected ? "#6366f1" : "#e2e8f0"}`,
-        boxShadow: selected
-          ? "0 0 0 2px rgba(99,102,241,0.25)"
-          : "0 1px 3px rgba(0,0,0,0.08)",
-        overflow: "hidden",
-        transition: "border-color 0.15s, box-shadow 0.15s",
-        ...SHAPE_STYLES[shape],
-      }}
-      className={data.className}
+      ref={ref}
+      className="absolute right-0 top-full mt-1 z-50 w-56 rounded-lg border border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/80 shadow-lg p-2.5 animate-in fade-in-0 zoom-in-95 duration-100"
     >
-      {/* Input handles */}
-      {renderHandles(data.inputs, "target", Position.Top)}
+      <p className="text-[11px] leading-relaxed text-red-700 dark:text-red-300 break-words whitespace-pre-wrap">
+        {message}
+      </p>
+    </div>
+  );
+}
+
+const HEADER_GRADIENT: Record<string, string> = {
+  start: "from-green-500/92 to-green-600/92",
+  end: "from-rose-500/92 to-red-600/92",
+  llm: "from-blue-500/92 to-indigo-500/92",
+  agent: "from-purple-500/92 to-violet-600/92",
+  default: "from-slate-500/92 to-slate-600/92",
+};
+
+const ACCENT_BORDER: Record<string, string> = {
+  start: "border-green-500 ring-green-500/20",
+  end: "border-red-500 ring-red-500/20",
+  llm: "border-blue-500 ring-blue-500/20",
+  agent: "border-purple-500 ring-purple-500/20",
+  default: "border-slate-400 ring-slate-400/20",
+};
+
+const HEADER_ICON: Record<string, string> = {
+  start: "▶",
+  end: "■",
+  llm: "🧠",
+  agent: "🤖",
+};
+
+export const BaseNode = memo(function BaseNode({ data, selected }: BaseNodeProps) {
+  const shape = data.shape ?? ViewNodeShape.SQUARE;
+  const isCircle = shape === ViewNodeShape.CIRCLE;
+  const nodeKind = (data as Record<string, unknown>).nodeKind as string | undefined;
+  const kind = nodeKind && HEADER_GRADIENT[nodeKind] ? nodeKind : "default";
+  const icon = nodeKind ? HEADER_ICON[nodeKind] : undefined;
+  const runError = (data as Record<string, unknown>)._runError as string | undefined;
+
+  const [showError, setShowError] = useState(false);
+  const toggleError = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowError((v) => !v);
+  }, []);
+  const closeError = useCallback(() => setShowError(false), []);
+
+  return (
+    <div
+      className={cn(
+        "relative overflow-visible bg-background/80 backdrop-blur-md backdrop-saturate-150 transition-[border-color,box-shadow,transform] duration-200",
+        isCircle
+          ? "min-w-[140px] min-h-[140px] rounded-full aspect-square flex flex-col justify-center items-center"
+          : "inline-flex flex-col w-max min-w-[160px] max-w-[420px] rounded-xl",
+        selected
+          ? cn("ring-2", ACCENT_BORDER[kind], "border-transparent shadow-[0_10px_28px_rgba(0,0,0,0.12)]")
+          : "border border-border/70 shadow-[0_10px_26px_rgba(0,0,0,0.10)]",
+        !selected && "hover:shadow-[0_14px_34px_rgba(0,0,0,0.14)] hover:-translate-y-[1px]",
+        runError && "!border-red-500 ring-2 ring-red-500/20",
+        data.className,
+      )}
+    >
+      {renderNodeHandles(data.inputs, "target")}
+
+      {/* Error badge */}
+      {runError && (
+        <div className="absolute -top-2 -right-2 z-10">
+          <button
+            type="button"
+            onClick={toggleError}
+            className={cn(
+              "flex items-center justify-center w-5 h-5 rounded-full",
+              "bg-red-500 text-white text-[10px] font-bold",
+              "shadow-md hover:bg-red-600 transition-colors",
+              "animate-in zoom-in-50 duration-200",
+            )}
+            title="查看错误"
+          >
+            !
+          </button>
+          {showError && <ErrorPopover message={runError} onClose={closeError} />}
+        </div>
+      )}
 
       {/* Header */}
       <div
-        style={{
-          padding: "8px 12px",
-          fontWeight: 600,
-          fontSize: 13,
-          color: "#1e293b",
-          borderBottom: shape === ViewNodeShape.SQUARE ? "1px solid #f1f5f9" : undefined,
-          textAlign: "center",
-          userSelect: "none",
-        }}
-        className={data.headerClassName}
+        className={cn(
+          "flex items-center gap-1.5 select-none bg-gradient-to-br text-white overflow-hidden",
+          isCircle ? "px-2.5 py-2 rounded-full" : "px-3.5 py-2 rounded-t-[12px]",
+          HEADER_GRADIENT[kind],
+          data.headerClassName,
+        )}
       >
-        {data.label}
+        {icon && <span className="text-xs leading-none">{icon}</span>}
+        <span
+          className={cn(
+            "text-xs font-semibold tracking-wide flex-1 truncate",
+            isCircle && "text-center",
+          )}
+        >
+          {data.label}
+        </span>
       </div>
 
-      {/* Content */}
-      {data.content && (
+      {/* Body: fixed vertical band; width follows content (clamped by node max-w) */}
+      {!isCircle && (
         <div
-          style={{
-            padding: shape === ViewNodeShape.CIRCLE ? "4px 8px" : "8px 12px",
-            fontSize: 12,
-            color: "#475569",
-            flex: shape === ViewNodeShape.CIRCLE ? undefined : 1,
-            overflow: "auto",
-          }}
-          className={data.contentClassName}
+          className={cn(
+            "px-3.5 py-2.5 text-[11px] text-muted-foreground/90 bg-muted/25 min-h-[50px] max-h-[150px] min-w-0 overflow-y-auto overflow-x-hidden break-words shrink-0",
+            data.contentClassName,
+          )}
         >
           {data.content}
         </div>
       )}
 
-      {/* Footer */}
-      <div
-        style={{
-          padding: "4px 12px 6px",
-          borderTop: shape === ViewNodeShape.SQUARE ? "1px solid #f1f5f9" : undefined,
-          textAlign: "center",
-          minHeight: 8,
-        }}
-        className={data.footerClassName}
-      />
+      {/* Footer spacer */}
+      {!isCircle && (
+        <div className={cn("min-h-1.5", data.footerClassName)} />
+      )}
 
-      {/* Output handles */}
-      {renderHandles(data.outputs, "source", Position.Bottom)}
+      {renderNodeHandles(data.outputs, "source")}
     </div>
   );
 });

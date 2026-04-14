@@ -2,8 +2,7 @@ import React, { useCallback } from "react";
 import { useReactFlow } from "@xyflow/react";
 import { LayoutDensity, type LayoutOptions } from "../types";
 import { computeLayout } from "../utils";
-
-// ─── SVG Icons (inline, no external deps) ───────────────────────────────────
+import { cn } from "../utils/cn";
 
 const IconUndo = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -63,50 +62,12 @@ const IconSparse = () => (
   </svg>
 );
 
-// ─── Styles ──────────────────────────────────────────────────────────────────
-
-const navStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 2,
-  padding: "4px 6px",
-  background: "#fff",
-  borderRadius: 8,
-  boxShadow: "0 1px 4px rgba(0,0,0,0.1)",
-  border: "1px solid #e2e8f0",
-  userSelect: "none",
-};
-
-const btnBase: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  width: 30,
-  height: 30,
-  border: "none",
-  borderRadius: 6,
-  background: "transparent",
-  color: "#475569",
-  cursor: "pointer",
-  transition: "background 0.12s, color 0.12s",
-};
-
-const dividerStyle: React.CSSProperties = {
-  width: 1,
-  height: 20,
-  background: "#e2e8f0",
-  margin: "0 4px",
-};
-
-// ─── Component ───────────────────────────────────────────────────────────────
-
 export interface WorkflowNavProps {
   canUndo?: boolean;
   canRedo?: boolean;
   onUndo?: () => void;
   onRedo?: () => void;
   layoutDirection?: "TB" | "LR" | "BT" | "RL";
-  style?: React.CSSProperties;
   className?: string;
 }
 
@@ -116,7 +77,6 @@ export function WorkflowNav({
   onUndo,
   onRedo,
   layoutDirection = "TB",
-  style: outerStyle,
   className,
 }: WorkflowNavProps) {
   const { zoomIn, zoomOut, fitView, getNodes, getEdges, setNodes } = useReactFlow();
@@ -133,50 +93,55 @@ export function WorkflowNav({
     [getNodes, getEdges, setNodes, fitView, layoutDirection],
   );
 
-  function btn(
-    label: string,
-    icon: React.ReactNode,
-    onClick: () => void,
-    disabled = false,
-  ) {
-    return (
-      <button
-        title={label}
-        aria-label={label}
-        disabled={disabled}
-        onClick={onClick}
-        style={{
-          ...btnBase,
-          opacity: disabled ? 0.35 : 1,
-          cursor: disabled ? "default" : "pointer",
-        }}
-        onMouseEnter={(e) => {
-          if (!disabled) (e.currentTarget.style.background = "#f1f5f9");
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = "transparent";
-        }}
-      >
-        {icon}
-      </button>
-    );
-  }
-
   return (
-    <div style={{ ...navStyle, ...outerStyle }} className={className}>
-      {btn("撤销", <IconUndo />, () => onUndo?.(), !canUndo)}
-      {btn("恢复", <IconRedo />, () => onRedo?.(), !canRedo)}
+    <div
+      className={cn(
+        "flex items-center gap-0.5 px-1.5 py-1 bg-background rounded-lg shadow-sm border border-border select-none",
+        className,
+      )}
+    >
+      <NavButton label="撤销" icon={<IconUndo />} onClick={() => onUndo?.()} disabled={!canUndo} />
+      <NavButton label="恢复" icon={<IconRedo />} onClick={() => onRedo?.()} disabled={!canRedo} />
 
-      <div style={dividerStyle} />
+      <div className="w-px h-5 bg-border mx-1" />
 
-      {btn("放大", <IconZoomIn />, () => zoomIn({ duration: 200 }))}
-      {btn("缩小", <IconZoomOut />, () => zoomOut({ duration: 200 }))}
-      {btn("适应画布", <IconFitView />, () => fitView({ padding: 0.2, duration: 300 }))}
+      <NavButton label="放大" icon={<IconZoomIn />} onClick={() => zoomIn({ duration: 200 })} />
+      <NavButton label="缩小" icon={<IconZoomOut />} onClick={() => zoomOut({ duration: 200 })} />
+      <NavButton label="适应画布" icon={<IconFitView />} onClick={() => fitView({ padding: 0.2, duration: 300 })} />
 
-      <div style={dividerStyle} />
+      <div className="w-px h-5 bg-border mx-1" />
 
-      {btn("紧凑布局", <IconCompact />, () => handleLayout(LayoutDensity.COMPACT))}
-      {btn("稀疏布局", <IconSparse />, () => handleLayout(LayoutDensity.SPARSE))}
+      <NavButton label="紧凑布局" icon={<IconCompact />} onClick={() => handleLayout(LayoutDensity.COMPACT)} />
+      <NavButton label="稀疏布局" icon={<IconSparse />} onClick={() => handleLayout(LayoutDensity.SPARSE)} />
     </div>
+  );
+}
+
+function NavButton({
+  label,
+  icon,
+  onClick,
+  disabled = false,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      title={label}
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center justify-center w-[30px] h-[30px] rounded-md bg-transparent text-slate-600 transition-colors duration-100",
+        disabled
+          ? "opacity-35 cursor-default"
+          : "cursor-pointer hover:bg-slate-100",
+      )}
+    >
+      {icon}
+    </button>
   );
 }

@@ -1,12 +1,12 @@
 import React from "react";
 import { MiniMap } from "@xyflow/react";
+import { cn } from "../utils/cn";
 
 export interface WorkflowMiniMapProps {
-  style?: React.CSSProperties;
   className?: string;
 }
 
-export function WorkflowMiniMap({ style, className }: WorkflowMiniMapProps) {
+export function WorkflowMiniMap({ className }: WorkflowMiniMapProps) {
   return (
     <MiniMap
       pannable
@@ -16,16 +16,10 @@ export function WorkflowMiniMap({ style, className }: WorkflowMiniMapProps) {
         return "#60a5fa";
       }}
       maskColor="rgba(0,0,0,0.12)"
-      style={{
-        position: "relative",
-        width: "100%",
-        height: "100%",
-        border: "none",
-        borderRadius: 8,
-        background: "rgba(255,255,255,0.03)",
-        ...style,
-      }}
-      className={className}
+      className={cn(
+        "!relative !w-full !h-full !border-none !rounded-lg !bg-white/[0.03]",
+        className,
+      )}
     />
   );
 }

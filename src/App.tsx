@@ -7,6 +7,7 @@ import {
   ModalHeader,
   ModalTitle,
 } from "./components/ui/modal";
+import { Toaster } from "./components/ui/sonner";
 import { MenuBar } from "./components/MenuBar";
 import { SideNav, SideNavShowButton } from "./components/SideNav";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -204,6 +205,8 @@ function App() {
           </ModalHeader>
         </ModalContent>
       </Modal>
+
+      <Toaster richColors position="top-center" />
     </div>
   );
 }

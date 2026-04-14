@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from typing import Any
@@ -15,10 +16,22 @@ log = structlog.get_logger()
 
 CHANNEL_PREFIX = "workflow:run:"
 CONTROL_CHANNEL_PREFIX = "workflow:control:"
+MAX_RUN_TIMEOUT = 600  # 10 minutes
 
 
 def _ts() -> int:
     return int(time.time() * 1000)
+
+
+def _format_run_error(exc: BaseException) -> str:
+    """Make opaque client errors easier to diagnose (often confused with WS failures)."""
+    s = str(exc).strip()
+    if s in ("Connection error.", "Connection error"):
+        return (
+            "无法连接大模型服务（Connection error）。"
+            "请检查 base_url / 网络 / 代理 / 防火墙，以及模型供应商接口是否可达。"
+        )
+    return str(exc)
 
 
 class WorkflowEngine:
@@ -52,7 +65,38 @@ class WorkflowEngine:
         self,
         input_data: dict[str, Any] | None = None,
     ) -> dict:
-        """Build, compile and execute the workflow graph. Returns final result dict.
+        """Build, compile and execute the workflow graph. Returns final result dict."""
+        try:
+            return await asyncio.wait_for(
+                self._execute_inner(input_data),
+                timeout=MAX_RUN_TIMEOUT,
+            )
+        except asyncio.TimeoutError:
+            log.error("workflow_run_timeout", run_id=self.run_id)
+            await self.publish({
+                "type": "run_failed",
+                "error": f"工作流执行超时 ({MAX_RUN_TIMEOUT}s)",
+            })
+            return {
+                "status": "failed",
+                "error": f"工作流执行超时 ({MAX_RUN_TIMEOUT}s)",
+                "node_results": [],
+                "output_data": {},
+            }
+        except asyncio.CancelledError:
+            log.info("workflow_run_cancelled_async", run_id=self.run_id)
+            await self.publish({"type": "run_cancelled"})
+            return {
+                "status": "cancelled",
+                "node_results": [],
+                "output_data": {},
+            }
+
+    async def _execute_inner(
+        self,
+        input_data: dict[str, Any] | None = None,
+    ) -> dict:
+        """Core execution logic.
 
         Publishes events:
           - run_started
@@ -67,7 +111,6 @@ class WorkflowEngine:
 
         builder = WorkflowGraphBuilder(self.graph_data)
 
-        node_ids = [n["id"] for n in (self.graph_data.get("nodes") or [])]
         node_results: list[dict] = []
         final_output: dict[str, Any] = {}
 
@@ -136,13 +179,14 @@ class WorkflowEngine:
 
         except Exception as exc:
             log.error("workflow_execution_error", run_id=self.run_id, error=str(exc))
+            err_msg = _format_run_error(exc)
             await self.publish({
                 "type": "run_failed",
-                "error": str(exc),
+                "error": err_msg,
             })
             return {
                 "status": "failed",
-                "error": str(exc),
+                "error": err_msg,
                 "node_results": node_results,
                 "output_data": final_output,
             }

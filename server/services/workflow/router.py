@@ -1,4 +1,5 @@
 import json
+import time
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
@@ -22,6 +23,157 @@ from . import service
 log = structlog.get_logger()
 settings = get_settings()
 router = APIRouter(prefix="/workflows", tags=["workflows"])
+
+
+# ── LLM Provider / Models ──
+
+OPENROUTER_PROVIDER_MAP: dict[str, str] = {
+    "openai": "openai",
+    "anthropic": "anthropic",
+    "google": "google",
+    "deepseek": "deepseek",
+    "zhipu": "zhipu",
+    "moonshot": "moonshot",
+    "qwen": "qwen",
+}
+
+
+async def _fetch_models_from_openrouter(provider: str) -> list[dict] | None:
+    """Tier-1: Fetch models from OpenRouter free API, filtered by provider prefix."""
+    import httpx
+
+    prefix = OPENROUTER_PROVIDER_MAP.get(provider)
+    if not prefix:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get("https://openrouter.ai/api/v1/models")
+            resp.raise_for_status()
+            data = resp.json()
+            results: list[dict] = []
+            for m in data.get("data", []):
+                mid: str = m.get("id", "")
+                if not mid.startswith(f"{prefix}/"):
+                    continue
+                short_id = mid.split("/", 1)[1]
+                results.append({
+                    "id": short_id,
+                    "name": m.get("name", short_id),
+                    "context_length": m.get("context_length"),
+                })
+            return results if results else None
+    except Exception:
+        return None
+
+
+async def _fetch_models_from_provider(
+    provider: str,
+    api_key: str | None = None,
+    api_base: str | None = None,
+) -> list[dict] | None:
+    """Tier-2: Fetch models from the provider's own API (requires api_key)."""
+    import httpx
+
+    if provider == "ollama":
+        base = (api_base or "http://localhost:11434").rstrip("/")
+        url = f"{base}/api/tags"
+        try:
+            async with httpx.AsyncClient(timeout=8) as client:
+                resp = await client.get(url)
+                resp.raise_for_status()
+                data = resp.json()
+                models = data.get("models", [])
+                return [{"id": m["name"], "name": m["name"]} for m in models]
+        except Exception:
+            return None
+
+    if not api_key:
+        return None
+
+    if provider == "google":
+        base = (api_base or "https://generativelanguage.googleapis.com/v1beta").rstrip("/")
+        url = f"{base}/models?key={api_key}"
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(url)
+                resp.raise_for_status()
+                data = resp.json()
+                models = data.get("models", [])
+                return [
+                    {"id": m["name"].split("/")[-1], "name": m.get("displayName", m["name"])}
+                    for m in models
+                    if "generateContent" in m.get("supportedGenerationMethods", [])
+                ]
+        except Exception:
+            return None
+
+    if provider == "anthropic":
+        base = (api_base or "https://api.anthropic.com/v1").rstrip("/")
+        url = f"{base}/models"
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(
+                    url,
+                    headers={
+                        "x-api-key": api_key,
+                        "anthropic-version": "2023-06-01",
+                    },
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                models = data.get("data", [])
+                return [{"id": m["id"], "name": m.get("display_name", m["id"])} for m in models]
+        except Exception:
+            return None
+
+    # OpenAI-compatible: openai, deepseek, zhipu, moonshot, qwen
+    api_endpoints: dict[str, str] = {
+        "openai": "https://api.openai.com/v1/models",
+        "deepseek": "https://api.deepseek.com/v1/models",
+        "zhipu": "https://open.bigmodel.cn/api/paas/v4/models",
+        "moonshot": "https://api.moonshot.cn/v1/models",
+        "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1/models",
+    }
+    default_base = api_endpoints.get(provider, "https://api.openai.com/v1/models")
+    if api_base:
+        base = api_base.rstrip("/")
+        url = f"{base}/models"
+    else:
+        url = default_base
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                url,
+                headers={"Authorization": f"Bearer {api_key}"},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            models = data.get("data", [])
+            return [{"id": m["id"], "name": m.get("name", m["id"])} for m in models]
+    except Exception:
+        return None
+
+
+@router.get("/llm/providers/models")
+async def list_provider_models(
+    provider: str = Query(..., description="Provider id"),
+    api_key: str | None = Query(None, description="Optional API key to fetch live models"),
+    api_base: str | None = Query(None, description="Optional custom API base URL"),
+):
+    """Three-tier model discovery: provider API → OpenRouter → empty (frontend fallback)."""
+    # Tier 1: if user provided api_key, try the provider's own API first (most accurate)
+    if api_key or provider == "ollama":
+        direct = await _fetch_models_from_provider(provider, api_key, api_base)
+        if direct:
+            return {"provider": provider, "models": direct, "source": "live"}
+
+    # Tier 2: OpenRouter free API (no auth needed, covers major providers)
+    openrouter = await _fetch_models_from_openrouter(provider)
+    if openrouter:
+        return {"provider": provider, "models": openrouter, "source": "openrouter"}
+
+    # Tier 3: empty → frontend uses its FALLBACK_MODELS
+    return {"provider": provider, "models": [], "source": "none"}
 
 
 # ── Workflows CRUD ──
@@ -229,6 +381,44 @@ async def get_run(
     if not run:
         raise HTTPException(404, "Not found")
     return RunOut.model_validate(run)
+
+
+@router.post("/runs/{run_id}/cancel")
+async def cancel_run(
+    run_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Request cancellation of a running workflow via Redis signal + DB fallback."""
+    run = await service.get_run(db, run_id)
+    if not run:
+        raise HTTPException(404, "Not found")
+    if run.status not in ("pending", "running"):
+        return {"success": True, "status": run.status, "message": "Run already finished"}
+
+    redis = AsyncRedis.from_url(settings.redis_url, decode_responses=True)
+    try:
+        await redis.set(f"workflow:cancel:{run_id}", "1", ex=600)
+    finally:
+        await redis.aclose()
+
+    from datetime import datetime, timezone
+
+    await service.update_run_status(
+        db, run_id, "cancelled",
+        error="用户取消",
+        completed_at=datetime.now(timezone.utc),
+    )
+
+    channel = f"workflow:run:{run_id}"
+    redis2 = AsyncRedis.from_url(settings.redis_url, decode_responses=True)
+    try:
+        payload = json.dumps({"type": "run_cancelled", "timestamp": int(time.time() * 1000)})
+        await redis2.publish(channel, payload)
+        await redis2.set(f"{channel}:terminal", payload, ex=3600)
+    finally:
+        await redis2.aclose()
+
+    return {"success": True, "status": "cancelled"}
 
 
 # ── WebSocket: real-time run progress ──

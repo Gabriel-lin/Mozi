@@ -25,13 +25,17 @@ class WorkflowState(TypedDict, total=False):
 
 # ── LLM factory ──
 
+DEFAULT_REQUEST_TIMEOUT = 120  # seconds
+
 def _create_chat_model(node_data: dict) -> BaseChatModel:
     """Build a LangChain ChatModel from node configuration."""
     provider = node_data.get("provider", "openai")
     model = node_data.get("model", "gpt-4o")
     api_key = node_data.get("apiKey") or "EMPTY"
-    api_base = node_data.get("apiBase") or None
+    raw_base = (node_data.get("base_url") or node_data.get("apiBase") or "").strip()
+    api_base = raw_base or None
     temperature = float(node_data.get("temperature", 0.7))
+    timeout = float(node_data.get("timeout", DEFAULT_REQUEST_TIMEOUT))
 
     match provider:
         case "anthropic":
@@ -41,6 +45,8 @@ def _create_chat_model(node_data: dict) -> BaseChatModel:
                     api_key=api_key,
                     model_name=model,
                     temperature=temperature,
+                    timeout=timeout,
+                    max_retries=0,
                 )
             except ImportError:
                 log.warning("langchain-anthropic not installed, falling back to ChatOpenAI")
@@ -49,6 +55,8 @@ def _create_chat_model(node_data: dict) -> BaseChatModel:
                     model=model,
                     temperature=temperature,
                     base_url=api_base,
+                    request_timeout=timeout,
+                    max_retries=0,
                 )
         case "google":
             try:
@@ -57,6 +65,7 @@ def _create_chat_model(node_data: dict) -> BaseChatModel:
                     google_api_key=api_key,
                     model=model,
                     temperature=temperature,
+                    timeout=timeout,
                 )
             except ImportError:
                 log.warning("langchain-google-genai not installed, falling back to ChatOpenAI")
@@ -65,12 +74,16 @@ def _create_chat_model(node_data: dict) -> BaseChatModel:
                     model=model,
                     temperature=temperature,
                     base_url=api_base,
+                    request_timeout=timeout,
+                    max_retries=0,
                 )
         case _:
             kwargs: dict[str, Any] = {
                 "api_key": api_key,
                 "model": model,
                 "temperature": temperature,
+                "request_timeout": timeout,
+                "max_retries": 0,
             }
             if api_base:
                 kwargs["base_url"] = api_base

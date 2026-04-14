@@ -5,35 +5,74 @@ import {
   applyEdgeChanges,
   type Node,
   type Edge,
+  type NodeChange,
+  type EdgeChange,
   type OnConnect,
   type OnNodesChange,
   type OnEdgesChange,
 } from "@xyflow/react";
 
-import { useHistory } from "@mozi/core/workflow/views";
 import {
-  workflowApi,
-  type Workflow,
-  type RunOut,
-  type RunEvent,
-  type GraphData,
-} from "@/services/workflow";
+  useHistory,
+  generateId,
+  computeLayout,
+  computeForceLayout,
+  LayoutDensity,
+  type HistoryEntryMeta,
+} from "@mozi/core/workflow/views";
+import { workflowApi, type Workflow, type GraphData } from "@/services/workflow";
+import { getDefaultBaseUrl } from "@/pages/workflow/llmProviderDefaults";
+import { useWorkflowRun } from "./useWorkflowRun";
 
-// ── Node runtime status ──
+function mergeNodeData(
+  prev: Record<string, unknown>,
+  updates: Record<string, unknown>,
+): Record<string, unknown> {
+  const next: Record<string, unknown> = { ...prev, ...updates };
+  if ("base_url" in updates) {
+    delete next.apiBase;
+  }
+  return next;
+}
 
-export type NodeRunStatus = "idle" | "running" | "completed" | "failed" | "skipped";
+function stripApiBaseFromPreviewUpdates(updates: Record<string, unknown>): Record<string, unknown> {
+  if (!("base_url" in updates)) return updates;
+  const { apiBase: _, ...rest } = updates;
+  return rest;
+}
 
-export interface NodeRunState {
-  status: NodeRunStatus;
-  input?: Record<string, unknown>;
-  output?: Record<string, unknown>;
-  error?: string;
-  startedAt?: number;
-  completedAt?: number;
+/** Structural / destructive RF updates that must get their own history entry. */
+function nodeChangesNeedHistory(changes: NodeChange[]): boolean {
+  return changes.some((c) => {
+    if (c.type === "remove" || c.type === "add" || c.type === "replace") return true;
+    if (c.type === "dimensions") {
+      return c.resizing === false;
+    }
+    return false;
+  });
+}
+
+function edgeChangesNeedHistory(changes: EdgeChange[]): boolean {
+  return changes.some((c) => c.type === "remove" || c.type === "add" || c.type === "replace");
 }
 
 export interface UseWorkflowOptions {
   workflowId?: string;
+}
+
+/** Canvas auto-layout modes (context menu / toolbar). */
+export type WorkflowCanvasLayoutId = "compact" | "sparse" | "compact_lr" | "force";
+
+function partitionTopLevelGraph(nodes: Node[], edges: Edge[]) {
+  const topIds = new Set(nodes.filter((n) => !n.parentId).map((n) => n.id));
+  const topNodes = nodes.filter((n) => topIds.has(n.id));
+  const topEdges = edges.filter((e) => topIds.has(e.source) && topIds.has(e.target));
+  return { topNodes, topEdges };
+}
+
+function mergeLaidOutPositions(fullNodes: Node[], laidTop: Node[]): Node[] {
+  const pos = new Map(laidTop.map((n) => [n.id, n.position] as const));
+  return fullNodes.map((n) => (pos.has(n.id) ? { ...n, position: pos.get(n.id)! } : n));
 }
 
 export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
@@ -45,6 +84,12 @@ export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
 
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
+  const nodesRef = useRef(nodes);
+  const edgesRef = useRef(edges);
+  nodesRef.current = nodes;
+  edgesRef.current = edges;
+
+  const historySeededForWorkflow = useRef<string | null>(null);
 
   // ── Selection ──
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
@@ -63,7 +108,12 @@ export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
   const displayNodes = useMemo(() => {
     if (!nodePreview) return nodes;
     return nodes.map((n) =>
-      n.id === nodePreview.id ? { ...n, data: { ...n.data, ...nodePreview.updates } } : n,
+      n.id === nodePreview.id
+        ? {
+            ...n,
+            data: mergeNodeData((n.data ?? {}) as Record<string, unknown>, nodePreview.updates),
+          }
+        : n,
     );
   }, [nodes, nodePreview]);
 
@@ -84,17 +134,32 @@ export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
   }, [edges, edgePreview]);
 
   // ── Running & data flow ──
-  const [runStatus, setRunStatus] = useState<"idle" | "running" | "completed" | "failed">("idle");
-  const [currentRun, setCurrentRun] = useState<RunOut | null>(null);
-  const [nodeRunStates, setNodeRunStates] = useState<Record<string, NodeRunState>>({});
+  const { runStatus, runError, currentRun, nodeRunStates, run, cancelRun, resetRunStates } =
+    useWorkflowRun({ workflowId });
 
   // ── History ──
   const history = useHistory();
+
+  useEffect(() => {
+    historySeededForWorkflow.current = null;
+  }, [workflowId]);
+
+  // Baseline snapshot so first edit has index 1 (useHistory undo requires currentIndex > 0).
+  useEffect(() => {
+    if (!workflowId || loading) return;
+    if (historySeededForWorkflow.current === workflowId) return;
+    historySeededForWorkflow.current = workflowId;
+    history.reset();
+    history.push(nodesRef.current, edgesRef.current, {
+      operation: { kind: "seed", payload: { workflowId } },
+    });
+  }, [workflowId, loading, nodes, edges, history]);
 
   // ── Load workflow + latest version ──
   useEffect(() => {
     if (!workflowId) return;
     let cancelled = false;
+    setLoading(true);
 
     (async () => {
       try {
@@ -122,34 +187,69 @@ export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
   // ── Mark dirty on any node/edge change ──
   const markDirty = useCallback(() => setDirty(true), []);
 
-  const pushHistory = useCallback(() => {
-    history.push(nodes, edges);
-  }, [history, nodes, edges]);
+  const pushHistory = useCallback(
+    (meta?: HistoryEntryMeta) => {
+      history.push(nodesRef.current, edgesRef.current, meta);
+    },
+    [history],
+  );
+
+  const recordGraphSnapshot = useCallback(
+    (nextNodes: Node[], nextEdges: Edge[], meta?: HistoryEntryMeta) => {
+      history.push(nextNodes, nextEdges, meta);
+    },
+    [history],
+  );
 
   // ── ReactFlow handlers ──
   const onNodesChange: OnNodesChange = useCallback(
     (changes) => {
-      setNodes((nds) => applyNodeChanges(changes, nds));
+      const record = nodeChangesNeedHistory(changes);
+      setNodes((nds) => {
+        const next = applyNodeChanges(changes, nds);
+        if (record) {
+          queueMicrotask(() =>
+            recordGraphSnapshot(next, edgesRef.current, {
+              operation: { kind: "reactFlowNodesChange", payload: { changes } },
+            }),
+          );
+        }
+        return next;
+      });
       markDirty();
     },
-    [markDirty],
+    [markDirty, recordGraphSnapshot],
   );
 
   const onEdgesChange: OnEdgesChange = useCallback(
     (changes) => {
-      setEdges((eds) => applyEdgeChanges(changes, eds));
+      const record = edgeChangesNeedHistory(changes);
+      setEdges((eds) => {
+        const next = applyEdgeChanges(changes, eds);
+        if (record) {
+          queueMicrotask(() =>
+            recordGraphSnapshot(nodesRef.current, next, {
+              operation: { kind: "reactFlowEdgesChange", payload: { changes } },
+            }),
+          );
+        }
+        return next;
+      });
       markDirty();
     },
-    [markDirty],
+    [markDirty, recordGraphSnapshot],
   );
 
   const onConnect: OnConnect = useCallback(
     (params) => {
-      pushHistory();
-      setEdges((eds) => addEdge({ ...params, type: "directional" }, eds));
+      const nextEdges = addEdge({ ...params, type: "directional" }, edgesRef.current);
+      setEdges(nextEdges);
+      recordGraphSnapshot(nodesRef.current, nextEdges, {
+        operation: { kind: "connect", payload: { ...params } },
+      });
       markDirty();
     },
-    [pushHistory, markDirty],
+    [recordGraphSnapshot, markDirty],
   );
 
   // ── Selection ──
@@ -175,11 +275,10 @@ export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
   // ── Preview / Commit / Revert ──
 
   const previewNode = useCallback((nodeId: string, updates: Record<string, unknown>) => {
-    setNodePreview((prev) =>
-      prev?.id === nodeId
-        ? { id: nodeId, updates: { ...prev.updates, ...updates } }
-        : { id: nodeId, updates },
-    );
+    setNodePreview((prev) => {
+      const merged = prev?.id === nodeId ? { ...prev.updates, ...updates } : { ...updates };
+      return { id: nodeId, updates: stripApiBaseFromPreviewUpdates(merged) };
+    });
   }, []);
 
   const previewEdge = useCallback((edgeId: string, updates: Record<string, unknown>) => {
@@ -191,40 +290,50 @@ export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
   }, []);
 
   const commitPreview = useCallback(() => {
-    if (nodePreview) {
-      pushHistory();
-      setNodes((nds) =>
-        nds.map((n) =>
-          n.id === nodePreview.id ? { ...n, data: { ...n.data, ...nodePreview.updates } } : n,
-        ),
+    const np = nodePreview;
+    const ep = edgePreview;
+
+    let nextNodes = nodesRef.current;
+    let nextEdges = edgesRef.current;
+
+    if (np) {
+      nextNodes = nextNodes.map((n) =>
+        n.id === np.id
+          ? {
+              ...n,
+              data: mergeNodeData((n.data ?? {}) as Record<string, unknown>, np.updates),
+            }
+          : n,
       );
+      setNodes(nextNodes);
       setSelectedNode((prev) =>
-        prev?.id === nodePreview.id
-          ? { ...prev, data: { ...prev.data, ...nodePreview.updates } }
+        prev?.id === np.id
+          ? {
+              ...prev,
+              data: mergeNodeData((prev.data ?? {}) as Record<string, unknown>, np.updates),
+            }
           : prev,
       );
       setNodePreview(null);
-      markDirty();
     }
-    if (edgePreview) {
-      pushHistory();
-      setEdges((eds) =>
-        eds.map((e) => {
-          if (e.id !== edgePreview.id) return e;
-          const { data: previewData, ...topLevel } = edgePreview.updates as {
-            data?: Record<string, unknown>;
-            [k: string]: unknown;
-          };
-          return {
-            ...e,
-            ...topLevel,
-            ...(previewData ? { data: { ...(e.data ?? {}), ...previewData } } : {}),
-          };
-        }),
-      );
+
+    if (ep) {
+      nextEdges = nextEdges.map((e) => {
+        if (e.id !== ep.id) return e;
+        const { data: previewData, ...topLevel } = ep.updates as {
+          data?: Record<string, unknown>;
+          [k: string]: unknown;
+        };
+        return {
+          ...e,
+          ...topLevel,
+          ...(previewData ? { data: { ...(e.data ?? {}), ...previewData } } : {}),
+        };
+      });
+      setEdges(nextEdges);
       setSelectedEdge((prev) => {
-        if (prev?.id !== edgePreview.id) return prev;
-        const { data: previewData, ...topLevel } = edgePreview.updates as {
+        if (prev?.id !== ep.id) return prev;
+        const { data: previewData, ...topLevel } = ep.updates as {
           data?: Record<string, unknown>;
           [k: string]: unknown;
         };
@@ -235,9 +344,27 @@ export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
         } as Edge;
       });
       setEdgePreview(null);
+    }
+
+    if (np || ep) {
+      recordGraphSnapshot(nextNodes, nextEdges, {
+        operation: {
+          kind: "commitPreview",
+          payload: {
+            nodeId: np?.id,
+            edgeId: ep?.id,
+            nodePatch: np?.updates,
+            edgePatch: ep?.updates,
+          },
+        },
+      });
       markDirty();
     }
-  }, [nodePreview, edgePreview, pushHistory, markDirty]);
+
+    if (runStatus !== "idle") {
+      resetRunStates();
+    }
+  }, [nodePreview, edgePreview, recordGraphSnapshot, markDirty, runStatus, resetRunStates]);
 
   const revertPreview = useCallback(() => {
     setNodePreview(null);
@@ -247,55 +374,96 @@ export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
   // ── Node / Edge direct updates (used outside config drawer) ──
   const updateNode = useCallback(
     (nodeId: string, updates: Record<string, unknown>) => {
-      pushHistory();
-      setNodes((nds) =>
-        nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, ...updates } } : n)),
+      const nextNodes = nodesRef.current.map((n) =>
+        n.id === nodeId
+          ? {
+              ...n,
+              data: mergeNodeData((n.data ?? {}) as Record<string, unknown>, updates),
+            }
+          : n,
       );
+      setNodes(nextNodes);
       setSelectedNode((prev) =>
-        prev?.id === nodeId ? { ...prev, data: { ...prev.data, ...updates } } : prev,
+        prev?.id === nodeId
+          ? {
+              ...prev,
+              data: mergeNodeData((prev.data ?? {}) as Record<string, unknown>, updates),
+            }
+          : prev,
       );
+      recordGraphSnapshot(nextNodes, edgesRef.current, {
+        operation: { kind: "updateNode", payload: { nodeId, updates } },
+      });
       markDirty();
     },
-    [pushHistory, markDirty],
+    [recordGraphSnapshot, markDirty],
   );
 
   const updateEdge = useCallback(
     (edgeId: string, updates: Record<string, unknown>) => {
-      pushHistory();
-      setEdges((eds) => eds.map((e) => (e.id === edgeId ? { ...e, ...updates } : e)));
+      const nextEdges = edgesRef.current.map((e) =>
+        e.id === edgeId ? ({ ...e, ...updates } as Edge) : e,
+      );
+      setEdges(nextEdges);
       setSelectedEdge((prev) => (prev?.id === edgeId ? ({ ...prev, ...updates } as Edge) : prev));
+      recordGraphSnapshot(nodesRef.current, nextEdges, {
+        operation: { kind: "updateEdge", payload: { edgeId, updates } },
+      });
       markDirty();
     },
-    [pushHistory, markDirty],
+    [recordGraphSnapshot, markDirty],
   );
 
   const addNode = useCallback(
     (node: Node) => {
-      pushHistory();
-      setNodes((nds) => [...nds, node]);
+      const nextNodes = [...nodesRef.current, node];
+      const nextEdges = edgesRef.current;
+      setNodes(nextNodes);
+      recordGraphSnapshot(nextNodes, nextEdges, {
+        operation: { kind: "addNode", payload: { nodeId: node.id } },
+      });
       markDirty();
     },
-    [pushHistory, markDirty],
+    [recordGraphSnapshot, markDirty],
   );
+
+  const syncSelectionAfterHistoryJump = useCallback((nextNodes: Node[], nextEdges: Edge[]) => {
+    setSelectedNode((prev) => {
+      if (!prev) return null;
+      const n = nextNodes.find((x) => x.id === prev.id);
+      return n ?? null;
+    });
+    setSelectedEdge((prev) => {
+      if (!prev) return null;
+      const e = nextEdges.find((x) => x.id === prev.id);
+      return (e as Edge | undefined) ?? null;
+    });
+  }, []);
 
   // ── Undo / Redo ──
   const undo = useCallback(() => {
     const entry = history.undo();
     if (entry) {
+      setNodePreview(null);
+      setEdgePreview(null);
       setNodes(entry.nodes as Node[]);
       setEdges(entry.edges as Edge[]);
+      syncSelectionAfterHistoryJump(entry.nodes as Node[], entry.edges as Edge[]);
       markDirty();
     }
-  }, [history, markDirty]);
+  }, [history, markDirty, syncSelectionAfterHistoryJump]);
 
   const redo = useCallback(() => {
     const entry = history.redo();
     if (entry) {
+      setNodePreview(null);
+      setEdgePreview(null);
       setNodes(entry.nodes as Node[]);
       setEdges(entry.edges as Edge[]);
+      syncSelectionAfterHistoryJump(entry.nodes as Node[], entry.edges as Edge[]);
       markDirty();
     }
-  }, [history, markDirty]);
+  }, [history, markDirty, syncSelectionAfterHistoryJump]);
 
   // ── Save (create version) ──
   const save = useCallback(async () => {
@@ -313,170 +481,285 @@ export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
     }
   }, [workflowId, saving, nodes, edges]);
 
-  // ── WebSocket ref for run progress ──
-  const wsRef = useRef<WebSocket | null>(null);
-  const runningRef = useRef(false);
-
-  const closeWs = useCallback(() => {
-    const ws = wsRef.current;
-    if (ws) {
-      ws.onmessage = null;
-      ws.onerror = null;
-      ws.onclose = null;
-      ws.close();
-      wsRef.current = null;
-    }
-  }, []);
-
-  // Clean up WS on unmount
-  useEffect(() => closeWs, [closeWs]);
-
-  // ── Run workflow ──
-  const run = useCallback(async () => {
-    if (!workflowId || runningRef.current) return;
-    runningRef.current = true;
-    setRunStatus("running");
-    setNodeRunStates({});
-    setCurrentRun(null);
-    closeWs();
-
-    try {
-      const result = await workflowApi.run(workflowId);
-      setCurrentRun(result);
-
-      const ws = workflowApi.connectRunWs(result.id);
-      wsRef.current = ws;
-
-      ws.onmessage = (e) => {
-        try {
-          const evt: RunEvent = JSON.parse(e.data);
-
-          switch (evt.type) {
-            case "node_started":
-              if (evt.node_id) {
-                setNodeRunStates((prev) => ({
-                  ...prev,
-                  [evt.node_id!]: {
-                    status: "running",
-                    startedAt: evt.timestamp,
-                  },
-                }));
-              }
-              break;
-
-            case "node_completed":
-              if (evt.node_id) {
-                setNodeRunStates((prev) => ({
-                  ...prev,
-                  [evt.node_id!]: {
-                    status: "completed",
-                    output: evt.output ?? undefined,
-                    completedAt: evt.timestamp,
-                  },
-                }));
-              }
-              break;
-
-            case "node_error":
-              if (evt.node_id) {
-                setNodeRunStates((prev) => ({
-                  ...prev,
-                  [evt.node_id!]: {
-                    status: "failed",
-                    error: evt.error ?? undefined,
-                    completedAt: evt.timestamp,
-                  },
-                }));
-              }
-              break;
-
-            case "run_completed":
-              runningRef.current = false;
-              setRunStatus("completed");
-              closeWs();
-              break;
-
-            case "run_failed":
-              runningRef.current = false;
-              setRunStatus("failed");
-              closeWs();
-              break;
-
-            case "run_cancelled":
-              runningRef.current = false;
-              setRunStatus("idle");
-              closeWs();
-              break;
-          }
-        } catch {
-          /* ignore malformed messages */
-        }
-      };
-
-      ws.onerror = () => {
-        runningRef.current = false;
-        setRunStatus("failed");
-        closeWs();
-      };
-
-      ws.onclose = () => {
-        if (wsRef.current === ws) {
-          wsRef.current = null;
-        }
-        if (runningRef.current) {
-          runningRef.current = false;
-          setRunStatus("failed");
-        }
-      };
-
-      // Fallback: poll run status if WebSocket receives no terminal event
-      const pollTimer = setInterval(async () => {
-        if (!runningRef.current) {
-          clearInterval(pollTimer);
-          return;
-        }
-        try {
-          const r = await workflowApi.getRun(result.id);
-          if (["completed", "failed", "cancelled"].includes(r.status)) {
-            clearInterval(pollTimer);
-            runningRef.current = false;
-            setRunStatus(r.status === "cancelled" ? "idle" : (r.status as "completed" | "failed"));
-            closeWs();
-          }
-        } catch {
-          /* ignore poll errors */
-        }
-      }, 5000);
-
-      ws.addEventListener("close", () => clearInterval(pollTimer), { once: true });
-    } catch {
-      runningRef.current = false;
-      setRunStatus("failed");
-    }
-  }, [workflowId, closeWs]);
-
-  const cancelRun = useCallback(() => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ action: "cancel" }));
-    } else if (runningRef.current) {
-      runningRef.current = false;
-      setRunStatus("idle");
-      setNodeRunStates({});
-      closeWs();
-    }
-  }, [closeWs]);
-
-  const resetNodeRunStates = useCallback(() => {
-    runningRef.current = false;
-    setNodeRunStates({});
-    setRunStatus("idle");
-    setCurrentRun(null);
-    closeWs();
-  }, [closeWs]);
-
   const onNodeDragStop = useCallback(() => {
-    pushHistory();
+    requestAnimationFrame(() => {
+      pushHistory({ operation: { kind: "nodeDragStop" } });
+    });
   }, [pushHistory]);
+
+  // ── Context menu helper actions ──
+
+  const deleteNode = useCallback(
+    (nodeId: string) => {
+      const nextNodes = nodesRef.current.filter((n) => n.id !== nodeId);
+      const nextEdges = edgesRef.current.filter((e) => e.source !== nodeId && e.target !== nodeId);
+      setNodes(nextNodes);
+      setEdges(nextEdges);
+      setSelectedNode((prev) => (prev?.id === nodeId ? null : prev));
+      recordGraphSnapshot(nextNodes, nextEdges, {
+        operation: { kind: "deleteNode", payload: { nodeId } },
+      });
+      markDirty();
+    },
+    [recordGraphSnapshot, markDirty],
+  );
+
+  const deleteEdge = useCallback(
+    (edgeId: string) => {
+      const nextEdges = edgesRef.current.filter((e) => e.id !== edgeId);
+      setEdges(nextEdges);
+      setSelectedEdge((prev) => (prev?.id === edgeId ? null : prev));
+      recordGraphSnapshot(nodesRef.current, nextEdges, {
+        operation: { kind: "deleteEdge", payload: { edgeId } },
+      });
+      markDirty();
+    },
+    [recordGraphSnapshot, markDirty],
+  );
+
+  const resetNodeConfig = useCallback(
+    (nodeId: string) => {
+      setNodes((nds) =>
+        nds.map((n) => {
+          if (n.id !== nodeId) return n;
+          const kind = (n.data as Record<string, unknown>).nodeKind as string | undefined;
+          const label = ((n.data as Record<string, unknown>).label as string) ?? "";
+          const base = {
+            inputs: [{ id: "in-1", label: "输入" }],
+            outputs: [{ id: "out-1", label: "输出" }],
+          };
+          if (kind === "llm") {
+            return {
+              ...n,
+              data: {
+                label,
+                nodeKind: "llm",
+                provider: "openai",
+                model: "gpt-4o",
+                apiKey: "",
+                base_url: getDefaultBaseUrl("openai"),
+                useCustomBaseUrl: false,
+                protocol: "openai",
+                protocolAdapter: "openai",
+                temperature: 0.7,
+                ...base,
+              },
+            };
+          }
+          if (kind === "agent") {
+            return {
+              ...n,
+              data: {
+                label,
+                nodeKind: "agent",
+                llmNodeId: "",
+                systemPrompt: "",
+                userPrompt: "",
+                rules: [],
+                hooks: [],
+                plugins: [],
+                skills: [],
+                ...base,
+              },
+            };
+          }
+          return { ...n, data: { label, ...(kind ? { nodeKind: kind } : {}), ...base } };
+        }),
+      );
+      requestAnimationFrame(() =>
+        pushHistory({ operation: { kind: "resetNodeConfig", payload: { nodeId } } }),
+      );
+      markDirty();
+    },
+    [pushHistory, markDirty],
+  );
+
+  const clearCanvas = useCallback(() => {
+    setNodes([]);
+    setEdges([]);
+    setSelectedNode(null);
+    setSelectedEdge(null);
+    recordGraphSnapshot([], [], { operation: { kind: "clearCanvas" } });
+    markDirty();
+  }, [recordGraphSnapshot, markDirty]);
+
+  const selectAll = useCallback(() => {
+    const nextNodes = nodesRef.current.map((n) => ({ ...n, selected: true }));
+    const nextEdges = edgesRef.current.map((e) => ({ ...e, selected: true }));
+    setNodes(nextNodes);
+    setEdges(nextEdges);
+    recordGraphSnapshot(nextNodes, nextEdges, {
+      operation: { kind: "selectAll" },
+    });
+    markDirty();
+  }, [recordGraphSnapshot, markDirty]);
+
+  const applyLayout = useCallback(
+    (
+      type: WorkflowCanvasLayoutId,
+      options?: {
+        /** Run after nodes state is committed (e.g. fitView). */
+        onApplied?: () => void;
+      },
+    ) => {
+      const nds = nodesRef.current;
+      const eds = edgesRef.current;
+      const { topNodes, topEdges } = partitionTopLevelGraph(nds, eds);
+      if (topNodes.length === 0) {
+        queueMicrotask(() => options?.onApplied?.());
+        return;
+      }
+
+      let laidTop: Node[];
+      switch (type) {
+        case "compact":
+          laidTop = computeLayout(topNodes, topEdges, {
+            density: LayoutDensity.COMPACT,
+            direction: "TB",
+          });
+          break;
+        case "sparse":
+          laidTop = computeLayout(topNodes, topEdges, {
+            density: LayoutDensity.SPARSE,
+            direction: "TB",
+          });
+          break;
+        case "compact_lr":
+          laidTop = computeLayout(topNodes, topEdges, {
+            density: LayoutDensity.COMPACT,
+            direction: "LR",
+          });
+          break;
+        case "force":
+          laidTop = computeForceLayout(topNodes, topEdges);
+          break;
+        default:
+          laidTop = topNodes;
+      }
+
+      const next = mergeLaidOutPositions(nds, laidTop);
+      setNodes(next);
+      recordGraphSnapshot(next, eds, {
+        operation: { kind: "layout", payload: { type } },
+      });
+      markDirty();
+      queueMicrotask(() => options?.onApplied?.());
+    },
+    [recordGraphSnapshot, markDirty],
+  );
+
+  const mergeToGroup = useCallback(
+    (nodeIds: string[]) => {
+      if (nodeIds.length < 2) return;
+      setNodes((nds) => {
+        const selected = nds.filter((n) => nodeIds.includes(n.id));
+        if (selected.length === 0) return nds;
+
+        const xs = selected.map((n) => n.position.x);
+        const ys = selected.map((n) => n.position.y);
+        const padding = 40;
+        const minX = Math.min(...xs) - padding;
+        const minY = Math.min(...ys) - padding;
+        const maxX = Math.max(...xs) + 200 + padding;
+        const maxY = Math.max(...ys) + 100 + padding;
+
+        const groupId = generateId("grp");
+        const groupNode: Node = {
+          id: groupId,
+          type: "group",
+          position: { x: minX, y: minY },
+          style: { width: maxX - minX, height: maxY - minY },
+          data: { label: "Group" },
+        };
+
+        const updated = nds.map((n) => {
+          if (!nodeIds.includes(n.id)) return n;
+          return {
+            ...n,
+            position: { x: n.position.x - minX, y: n.position.y - minY },
+            parentId: groupId,
+            extent: "parent" as const,
+          };
+        });
+
+        return [groupNode, ...updated];
+      });
+      requestAnimationFrame(() =>
+        pushHistory({ operation: { kind: "mergeToGroup", payload: { nodeIds } } }),
+      );
+      markDirty();
+    },
+    [pushHistory, markDirty],
+  );
+
+  const addLabelGroup = useCallback(
+    (nodeIds: string[]) => {
+      if (nodeIds.length === 0) return;
+      setNodes((nds) => {
+        const selected = nds.filter((n) => nodeIds.includes(n.id));
+        if (selected.length === 0) return nds;
+
+        const xs = selected.map((n) => n.position.x);
+        const ys = selected.map((n) => n.position.y);
+        const padding = 40;
+        const minX = Math.min(...xs) - padding;
+        const minY = Math.min(...ys) - padding;
+        const maxX = Math.max(...xs) + 200 + padding;
+        const maxY = Math.max(...ys) + 100 + padding;
+
+        const groupId = generateId("lbl");
+        const groupNode: Node = {
+          id: groupId,
+          type: "group",
+          position: { x: minX, y: minY },
+          style: { width: maxX - minX, height: maxY - minY },
+          data: { label: "Label" },
+        };
+
+        const updated = nds.map((n) => {
+          if (!nodeIds.includes(n.id)) return n;
+          return {
+            ...n,
+            position: { x: n.position.x - minX, y: n.position.y - minY },
+            parentId: groupId,
+            extent: "parent" as const,
+          };
+        });
+
+        return [groupNode, ...updated];
+      });
+      requestAnimationFrame(() =>
+        pushHistory({ operation: { kind: "addLabelGroup", payload: { nodeIds } } }),
+      );
+      markDirty();
+    },
+    [pushHistory, markDirty],
+  );
+
+  const deleteGroup = useCallback(
+    (groupId: string) => {
+      setNodes((nds) => {
+        const group = nds.find((n) => n.id === groupId);
+        if (!group) return nds;
+        const gx = group.position.x;
+        const gy = group.position.y;
+        return nds
+          .filter((n) => n.id !== groupId)
+          .map((n) => {
+            if (n.parentId !== groupId) return n;
+            const restored = { ...n, position: { x: n.position.x + gx, y: n.position.y + gy } };
+            delete (restored as Record<string, unknown>).parentId;
+            delete (restored as Record<string, unknown>).extent;
+            return restored as Node;
+          });
+      });
+      requestAnimationFrame(() =>
+        pushHistory({ operation: { kind: "deleteGroup", payload: { groupId } } }),
+      );
+      markDirty();
+    },
+    [pushHistory, markDirty],
+  );
 
   return {
     workflow,
@@ -510,19 +793,32 @@ export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
 
     canUndo: history.canUndo,
     canRedo: history.canRedo,
+    historyCursor: history.currentIndex,
     undo,
     redo,
 
     save,
 
     runStatus,
+    runError,
     currentRun,
     nodeRunStates,
     run,
     cancelRun,
-    resetNodeRunStates,
+    resetRunStates,
 
     rawNodes: nodes,
+    rawEdges: edges,
+
+    deleteNode,
+    deleteEdge,
+    resetNodeConfig,
+    clearCanvas,
+    selectAll,
+    applyLayout,
+    mergeToGroup,
+    addLabelGroup,
+    deleteGroup,
   };
 }
 

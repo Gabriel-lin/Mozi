@@ -8,6 +8,12 @@ const INITIAL_STATE: ContextMenuState = {
   items: [],
 };
 
+interface MenuTarget {
+  nodeId?: string;
+  edgeId?: string;
+  nodeIds?: string[];
+}
+
 function createMenuStore() {
   let state: ContextMenuState = { ...INITIAL_STATE };
   const listeners = new Set<() => void>();
@@ -22,17 +28,14 @@ function createMenuStore() {
       listeners.add(cb);
       return () => listeners.delete(cb);
     },
-    open(
-      position: XYPosition,
-      items: ContextMenuItem[],
-      target?: { nodeId?: string; edgeId?: string },
-    ) {
+    open(position: XYPosition, items: ContextMenuItem[], target?: MenuTarget) {
       state = {
         visible: true,
         position,
         items,
         targetNodeId: target?.nodeId,
         targetEdgeId: target?.edgeId,
+        targetNodeIds: target?.nodeIds,
       };
       notify();
     },
@@ -49,6 +52,7 @@ export interface UseContextMenuOptions {
   nodeItems?: (nodeId: string) => ContextMenuItem[];
   edgeItems?: (edgeId: string) => ContextMenuItem[];
   canvasItems?: () => ContextMenuItem[];
+  selectionItems?: (nodeIds: string[]) => ContextMenuItem[];
 }
 
 export interface UseContextMenuReturn {
@@ -56,6 +60,7 @@ export interface UseContextMenuReturn {
   onNodeContextMenu: (event: React.MouseEvent, nodeId: string) => void;
   onEdgeContextMenu: (event: React.MouseEvent, edgeId: string) => void;
   onPaneContextMenu: (event: React.MouseEvent) => void;
+  onSelectionContextMenu: (event: React.MouseEvent, nodeIds: string[]) => void;
   close: () => void;
 }
 
@@ -97,7 +102,17 @@ export function useContextMenu(options: UseContextMenuOptions = {}): UseContextM
     [store, options.canvasItems, options.items],
   );
 
+  const onSelectionContextMenu = useCallback(
+    (event: React.MouseEvent, nodeIds: string[]) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const items = options.selectionItems?.(nodeIds) ?? options.items ?? [];
+      store.open({ x: event.clientX, y: event.clientY }, items, { nodeIds });
+    },
+    [store, options.selectionItems, options.items],
+  );
+
   const close = useCallback(() => store.close(), [store]);
 
-  return { state, onNodeContextMenu, onEdgeContextMenu, onPaneContextMenu, close };
+  return { state, onNodeContextMenu, onEdgeContextMenu, onPaneContextMenu, onSelectionContextMenu, close };
 }

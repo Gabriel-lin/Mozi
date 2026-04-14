@@ -1,7 +1,7 @@
 import React from "react";
 
 interface ConfigFieldProps {
-  label: string;
+  label: React.ReactNode;
   children: React.ReactNode;
 }
 

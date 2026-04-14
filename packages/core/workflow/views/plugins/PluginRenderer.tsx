@@ -1,11 +1,12 @@
 import React from "react";
 import type { ViewPlugin } from "../types";
+import { cn } from "../utils/cn";
 
-const POSITION_STYLES: Record<string, React.CSSProperties> = {
-  "top-left": { position: "absolute", top: 10, left: 10 },
-  "top-right": { position: "absolute", top: 10, right: 10 },
-  "bottom-left": { position: "absolute", bottom: 10, left: 10 },
-  "bottom-right": { position: "absolute", bottom: 10, right: 10 },
+const POSITION_CLASSES: Record<string, string> = {
+  "top-left": "absolute top-2.5 left-2.5",
+  "top-right": "absolute top-2.5 right-2.5",
+  "bottom-left": "absolute bottom-2.5 left-2.5",
+  "bottom-right": "absolute bottom-2.5 right-2.5",
 };
 
 interface PluginSlotProps {
@@ -20,7 +21,7 @@ function PluginSlot({ plugins, position }: PluginSlotProps) {
   if (items.length === 0) return null;
 
   return (
-    <div style={{ ...POSITION_STYLES[position], zIndex: 10, display: "flex", gap: 8 }}>
+    <div className={cn(POSITION_CLASSES[position], "z-10 flex gap-2")}>
       {items.map((p) => (
         <div key={p.id}>{p.render()}</div>
       ))}

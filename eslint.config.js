@@ -29,7 +29,7 @@ export default tseslint.config(
     rules: {
       ...reactHooksPlugin.configs.recommended.rules,
       "no-empty": ["error", { allowEmptyCatch: true }],
-      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", destructuredArrayIgnorePattern: "^_", varsIgnorePattern: "^_" }],
       "@typescript-eslint/no-explicit-any": "warn",
     },
   },

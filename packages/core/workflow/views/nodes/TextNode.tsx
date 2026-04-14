@@ -1,92 +1,46 @@
 import React, { memo } from "react";
-import { Handle, Position } from "@xyflow/react";
-import { ViewNodeShape, type HandleConfig } from "../types";
+import { ViewNodeShape } from "../types";
 import type { TextNodeProps } from "./types";
-
-const positionMap: Record<string, Position> = {
-  left: Position.Left,
-  right: Position.Right,
-  top: Position.Top,
-  bottom: Position.Bottom,
-};
-
-function resolvePosition(pos: string | undefined, fallback: Position): Position {
-  return pos ? positionMap[pos] ?? fallback : fallback;
-}
-
-function renderHandles(
-  handles: HandleConfig[],
-  type: "source" | "target",
-  defaultPosition: Position,
-) {
-  const count = handles.length;
-  return handles.map((h, i) => {
-    const pos = resolvePosition(h.position, defaultPosition);
-    const isVertical = pos === Position.Top || pos === Position.Bottom;
-    const offset = count > 1 ? ((i + 1) / (count + 1)) * 100 : 50;
-    const style: React.CSSProperties = isVertical
-      ? { left: `${offset}%` }
-      : { top: `${offset}%` };
-
-    return (
-      <Handle
-        key={h.id}
-        id={h.id}
-        type={type}
-        position={pos}
-        style={{
-          width: 8,
-          height: 8,
-          background: type === "target" ? "#6366f1" : "#22c55e",
-          border: "2px solid #fff",
-          ...style,
-        }}
-        title={h.label}
-      />
-    );
-  });
-}
+import { cn } from "../utils/cn";
+import { renderNodeHandles } from "./renderNodeHandles";
 
 export const TextNode = memo(function TextNode({ data, selected }: TextNodeProps) {
   const shape = data.shape ?? ViewNodeShape.SQUARE;
   const isCircle = shape === ViewNodeShape.CIRCLE;
+  const label = data.text || "文本";
 
   return (
     <div
-      style={{
-        minWidth: isCircle ? 100 : 120,
-        minHeight: isCircle ? 100 : undefined,
-        padding: isCircle ? "16px" : "10px 16px",
-        background: "#fff",
-        border: `2px solid ${selected ? "#6366f1" : "#e2e8f0"}`,
-        borderRadius: isCircle ? "50%" : 8,
-        boxShadow: selected
-          ? "0 0 0 2px rgba(99,102,241,0.25)"
-          : "0 1px 3px rgba(0,0,0,0.08)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        textAlign: "center",
-        aspectRatio: isCircle ? "1 / 1" : undefined,
-        transition: "border-color 0.15s, box-shadow 0.15s",
-        userSelect: "none",
-      }}
-      className={data.className}
+      className={cn(
+        "overflow-hidden bg-background/80 backdrop-blur-md backdrop-saturate-150 transition-[border-color,box-shadow,transform] duration-200 select-none",
+        isCircle
+          ? "flex flex-col min-w-[100px] min-h-[100px] rounded-full aspect-square items-center justify-center"
+          : "inline-flex flex-col w-max min-w-[160px] max-w-[420px] rounded-xl",
+        selected
+          ? "border-transparent ring-2 ring-indigo-400/25 shadow-[0_10px_28px_rgba(0,0,0,0.12)]"
+          : "border border-border/70 shadow-[0_10px_26px_rgba(0,0,0,0.10)]",
+        !selected && "hover:shadow-[0_14px_34px_rgba(0,0,0,0.14)] hover:-translate-y-[1px]",
+        data.className,
+      )}
     >
-      {renderHandles(data.inputs, "target", Position.Top)}
+      {renderNodeHandles(data.inputs, "target")}
 
-      <span
-        style={{
-          fontSize: data.fontSize ?? 13,
-          color: data.color ?? "#334155",
-          lineHeight: 1.4,
-          wordBreak: "break-word",
-        }}
-      >
-        {data.text}
-      </span>
+      {/* Header */}
+      <div className="flex items-center gap-1.5 bg-gradient-to-br from-indigo-500/92 to-indigo-600/92 px-3.5 py-2 text-white rounded-t-[12px]">
+        <span className="text-[11px] leading-none">📝</span>
+        <span className="text-xs font-semibold tracking-wide flex-1 truncate">
+          {label}
+        </span>
+      </div>
 
-      {renderHandles(data.outputs, "source", Position.Bottom)}
+      {/* Body */}
+      {!isCircle && (
+        <div className="px-3.5 py-2.5 text-xs text-muted-foreground/90 leading-relaxed break-words bg-muted/25 min-h-[50px] max-h-[150px] min-w-0 overflow-y-auto overflow-x-hidden shrink-0">
+          {data.text}
+        </div>
+      )}
+
+      {renderNodeHandles(data.outputs, "source")}
     </div>
   );
 });

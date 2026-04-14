@@ -23,7 +23,6 @@ import {
 import {
   type ProfileSettings,
   useUserStore,
-  useAuthStore,
   DEFAULT_PROFILE,
   DEFAULT_WORKSPACES,
 } from "@mozi/store";
@@ -60,7 +59,6 @@ export function ProfileModal({
     setActiveWorkspace,
   } = useUserStore();
 
-  const session = useAuthStore((s) => s.session);
   const isGitHubConnected = useMemo(() => !!storeProfile.github, [storeProfile.github]);
   const [editingField, setEditingField] = useState<string | null>(null);
   const [localUserData, setLocalUserData] = useState({

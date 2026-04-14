@@ -194,6 +194,18 @@
     "dragHint": "从右侧面板拖拽组件到画布，或双击画布添加节点",
     "addNode": "添加节点",
     "components": "组件",
+    "flowNodes": "流程节点",
+    "functionNodes": "功能节点",
+    "palette": {
+      "basicNode": "基础节点",
+      "conditionNode": "条件节点",
+      "loopNode": "循环节点",
+      "textNode": "文本节点",
+      "startNode": "起点",
+      "endNode": "结束节点",
+      "llm": "LLM",
+      "agent": "Agent"
+    },
     "nodes": "节点",
     "edges": "连线",
     "nodeConfig": "节点配置",
@@ -206,7 +218,22 @@
     "edgeLabel": "标签",
     "logs": "执行日志",
     "executing": "工作流执行中...",
-    "readyHint": "点击运行按钮启动工作流"
+    "readyHint": "点击运行按钮启动工作流",
+    "ctx": {
+      "resetConfig": "重置配置",
+      "deleteNode": "删除节点",
+      "splitGroup": "拆分分组",
+      "deleteEdge": "删除连线",
+      "selectAll": "全选",
+      "layout": "布局",
+      "layoutCompact": "紧凑布局（纵向）",
+      "layoutSparse": "疏朗布局",
+      "layoutCompactLr": "横向层级布局",
+      "layoutForce": "力导布局",
+      "clearCanvas": "清空画布",
+      "mergeGroup": "合并节点",
+      "addLabel": "添加标签"
+    }
   },
   "swarm": {
     "description": "多智能体协作集群管理",

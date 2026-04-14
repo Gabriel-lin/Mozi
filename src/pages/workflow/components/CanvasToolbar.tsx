@@ -1,8 +1,8 @@
 import React from "react";
-import { MousePointer2, Hand, Square, Type, Minus } from "lucide-react";
+import { MousePointer2, Hand, Type } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type CanvasTool = "select" | "pan" | "addNode" | "addText" | "addEdge";
+export type CanvasTool = "select" | "pan" | "addText";
 
 interface CanvasToolbarProps {
   activeTool: CanvasTool;
@@ -12,9 +12,7 @@ interface CanvasToolbarProps {
 const tools: { id: CanvasTool; icon: React.ElementType; label: string }[] = [
   { id: "select", icon: MousePointer2, label: "选择" },
   { id: "pan", icon: Hand, label: "平移" },
-  { id: "addNode", icon: Square, label: "添加节点" },
   { id: "addText", icon: Type, label: "添加文本" },
-  { id: "addEdge", icon: Minus, label: "添加连线" },
 ];
 
 export function CanvasToolbar({ activeTool, onToolChange }: CanvasToolbarProps) {

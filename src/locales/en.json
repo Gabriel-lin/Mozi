@@ -194,6 +194,18 @@
     "dragHint": "Drag components from the right panel onto the canvas, or double-click to add a node",
     "addNode": "Add Node",
     "components": "Components",
+    "flowNodes": "Flow nodes",
+    "functionNodes": "Function nodes",
+    "palette": {
+      "basicNode": "Base node",
+      "conditionNode": "Condition node",
+      "loopNode": "Loop node",
+      "textNode": "Text node",
+      "startNode": "Start",
+      "endNode": "End node",
+      "llm": "LLM",
+      "agent": "Agent"
+    },
     "nodes": "Nodes",
     "edges": "Edges",
     "nodeConfig": "Node Config",
@@ -206,7 +218,22 @@
     "edgeLabel": "Label",
     "logs": "Execution Logs",
     "executing": "Workflow executing...",
-    "readyHint": "Click the run button to start the workflow"
+    "readyHint": "Click the run button to start the workflow",
+    "ctx": {
+      "resetConfig": "Reset config",
+      "deleteNode": "Delete node",
+      "splitGroup": "Ungroup",
+      "deleteEdge": "Delete edge",
+      "selectAll": "Select all",
+      "layout": "Layout",
+      "layoutCompact": "Compact (top to bottom)",
+      "layoutSparse": "Spaced layout",
+      "layoutCompactLr": "Compact (left to right)",
+      "layoutForce": "Force-directed",
+      "clearCanvas": "Clear canvas",
+      "mergeGroup": "Group selection",
+      "addLabel": "Add label frame"
+    }
   },
   "swarm": {
     "description": "Multi-agent collaboration cluster management",
