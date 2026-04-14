@@ -5,7 +5,6 @@ import {
   CircleDot,
   StopCircle,
   Type,
-  ArrowRight,
   GitBranch,
   Repeat,
   BrainCircuit,
@@ -17,37 +16,38 @@ interface DragItem {
   type: string;
   nodeType?: string;
   nodeKind?: string;
-  label: string;
+  /** i18n key under workflow.palette.* */
+  labelKey: string;
   icon: React.ElementType;
   gradient: string;
 }
 
-const nodeItems: DragItem[] = [
+const flowNodeItems: DragItem[] = [
   {
     type: "node",
     nodeType: "workflowBase",
-    label: "基础节点",
+    labelKey: "basicNode",
     icon: Square,
     gradient: "from-sky-400 to-blue-500",
   },
   {
     type: "node",
     nodeType: "workflowBase",
-    label: "条件节点",
+    labelKey: "conditionNode",
     icon: GitBranch,
     gradient: "from-amber-400 to-orange-500",
   },
   {
     type: "node",
     nodeType: "workflowBase",
-    label: "循环节点",
+    labelKey: "loopNode",
     icon: Repeat,
     gradient: "from-violet-400 to-purple-500",
   },
   {
     type: "node",
     nodeType: "workflowText",
-    label: "文本节点",
+    labelKey: "textNode",
     icon: Type,
     gradient: "from-emerald-400 to-teal-500",
   },
@@ -55,7 +55,7 @@ const nodeItems: DragItem[] = [
     type: "node",
     nodeType: "workflowBase",
     nodeKind: "start",
-    label: "起始节点",
+    labelKey: "startNode",
     icon: CircleDot,
     gradient: "from-green-400 to-emerald-500",
   },
@@ -63,15 +63,18 @@ const nodeItems: DragItem[] = [
     type: "node",
     nodeType: "workflowBase",
     nodeKind: "end",
-    label: "结束节点",
+    labelKey: "endNode",
     icon: StopCircle,
     gradient: "from-rose-400 to-red-500",
   },
+];
+
+const functionNodeItems: DragItem[] = [
   {
     type: "node",
     nodeType: "workflowBase",
     nodeKind: "llm",
-    label: "LLM",
+    labelKey: "llm",
     icon: BrainCircuit,
     gradient: "from-cyan-400 to-blue-600",
   },
@@ -79,18 +82,16 @@ const nodeItems: DragItem[] = [
     type: "node",
     nodeType: "workflowBase",
     nodeKind: "agent",
-    label: "Agent",
+    labelKey: "agent",
     icon: Bot,
     gradient: "from-fuchsia-400 to-purple-600",
   },
 ];
 
-const edgeItems: DragItem[] = [
-  { type: "edge", label: "有向边", icon: ArrowRight, gradient: "from-blue-400 to-indigo-500" },
-];
-
 function DragCard({ item }: { item: DragItem }) {
+  const { t } = useTranslation();
   const Icon = item.icon;
+  const label = t(`workflow.palette.${item.labelKey}`);
 
   const onDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData(
@@ -99,7 +100,7 @@ function DragCard({ item }: { item: DragItem }) {
         type: item.type,
         nodeType: item.nodeType,
         nodeKind: item.nodeKind,
-        label: item.label,
+        label,
       }),
     );
     e.dataTransfer.effectAllowed = "move";
@@ -114,7 +115,25 @@ function DragCard({ item }: { item: DragItem }) {
       <div className={cn("p-1.5 rounded-md bg-gradient-to-br text-white shadow-sm", item.gradient)}>
         <Icon className="h-3.5 w-3.5" />
       </div>
-      <span className="text-xs font-medium text-foreground">{item.label}</span>
+      <span className="text-xs font-medium text-foreground">{label}</span>
+    </div>
+  );
+}
+
+function NodeSection({ title, items }: { title: string; items: DragItem[] }) {
+  return (
+    <div className="space-y-2">
+      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+        {title}
+      </span>
+      <div className="space-y-1.5">
+        {items.map((item) => (
+          <DragCard
+            key={`${item.labelKey}-${item.nodeKind ?? item.nodeType ?? "base"}`}
+            item={item}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -126,33 +145,14 @@ export function ComponentPanel() {
     <div className="w-52 flex flex-col glass border-l border-border/50 shadow-lg overflow-y-auto">
       <div className="p-3 border-b border-border/30">
         <h3 className="text-xs font-semibold text-foreground uppercase tracking-wider">
-          {t("workflow.components", "组件")}
+          {t("workflow.components")}
         </h3>
       </div>
 
       <div className="p-3 space-y-4">
-        {/* Nodes */}
-        <div className="space-y-2">
-          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-            {t("workflow.nodes", "节点")}
-          </span>
-          <div className="space-y-1.5">
-            {nodeItems.map((item) => (
-              <DragCard key={item.label} item={item} />
-            ))}
-          </div>
-        </div>
-
-        {/* Edges */}
-        <div className="space-y-2">
-          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-            {t("workflow.edges", "连线")}
-          </span>
-          <div className="space-y-1.5">
-            {edgeItems.map((item) => (
-              <DragCard key={item.label} item={item} />
-            ))}
-          </div>
+        <div className="space-y-3">
+          <NodeSection title={t("workflow.flowNodes")} items={flowNodeItems} />
+          <NodeSection title={t("workflow.functionNodes")} items={functionNodeItems} />
         </div>
       </div>
     </div>

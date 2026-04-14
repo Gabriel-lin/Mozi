@@ -88,7 +88,7 @@ export function BidirectionalEdge({
         fill="none"
         stroke="transparent"
         strokeWidth={20}
-        style={{ cursor: "pointer" }}
+        className="cursor-pointer"
       />
       {data?.label && (
         <EdgeLabelRenderer config={data.label} pathRef={pathRef.current} />

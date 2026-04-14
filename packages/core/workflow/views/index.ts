@@ -1,6 +1,6 @@
 // ─── Nodes ───────────────────────────────────────────────────────────────────
-export { BaseNode, TextNode } from "./nodes";
-export type { BaseNodeProps, TextNodeProps } from "./nodes";
+export { BaseNode, TextNode, GroupNode } from "./nodes";
+export type { BaseNodeProps, TextNodeProps, GroupNodeData, GroupNodeProps } from "./nodes";
 
 // ─── Edges ───────────────────────────────────────────────────────────────────
 export {
@@ -38,6 +38,7 @@ export {
   quadraticControlPoint,
   selfLoopPath,
   computeLayout,
+  computeForceLayout,
   serializeGraph,
   deserializeGraph,
 } from "./utils";
@@ -73,6 +74,8 @@ export type {
   WorkflowViewEdge,
   LayoutOptions,
   HistoryEntry,
+  HistoryEntryMeta,
+  HistoryOperation,
   HistoryState,
   ViewPlugin,
   ContextMenuItem,
@@ -100,6 +103,7 @@ export {
 // ─── Node / Edge type maps (for ReactFlow registration) ─────────────────────
 import { BaseNode as _BaseNode } from "./nodes";
 import { TextNode as _TextNode } from "./nodes";
+import { GroupNode as _GroupNode } from "./nodes";
 import { DirectionalEdge as _DirectionalEdge } from "./edges";
 import { BidirectionalEdge as _BidirectionalEdge } from "./edges";
 import { SelfLoopEdge as _SelfLoopEdge } from "./edges";
@@ -107,6 +111,7 @@ import { SelfLoopEdge as _SelfLoopEdge } from "./edges";
 export const workflowNodeTypes = {
   workflowBase: _BaseNode,
   workflowText: _TextNode,
+  group: _GroupNode,
 } as const;
 
 export const workflowEdgeTypes = {

@@ -1,7 +1,7 @@
 import { useCallback, useRef, useSyncExternalStore } from "react";
 import type { Node, Edge } from "@xyflow/react";
-import type { HistoryEntry, HistoryState } from "../types";
-import { generateId, serializeGraph, deserializeGraph } from "../utils";
+import type { HistoryEntry, HistoryEntryMeta, HistoryState } from "../types";
+import { generateId } from "../utils";
 
 const MAX_ENTRIES = 100;
 
@@ -45,13 +45,16 @@ function createStore(storageKey?: string) {
       listeners.add(cb);
       return () => listeners.delete(cb);
     },
-    push(nodes: Node[], edges: Edge[], label?: string) {
+    push(nodes: Node[], edges: Edge[], meta?: HistoryEntryMeta | string) {
+      const label = typeof meta === "string" ? meta : meta?.label;
+      const operation = typeof meta === "object" && meta != null ? meta.operation : undefined;
       const entry: HistoryEntry = {
         id: generateId("hist"),
         timestamp: Date.now(),
         nodes: JSON.parse(JSON.stringify(nodes)),
         edges: JSON.parse(JSON.stringify(edges)),
         label,
+        operation,
       };
 
       const next = state.entries.slice(0, state.currentIndex + 1);
@@ -97,7 +100,7 @@ export interface UseHistoryOptions {
 }
 
 export interface UseHistoryReturn {
-  push: (nodes: Node[], edges: Edge[], label?: string) => void;
+  push: (nodes: Node[], edges: Edge[], meta?: HistoryEntryMeta | string) => void;
   undo: () => { nodes: Node[]; edges: Edge[] } | null;
   redo: () => { nodes: Node[]; edges: Edge[] } | null;
   reset: () => void;
@@ -119,7 +122,8 @@ export function useHistory(options: UseHistoryOptions = {}): UseHistoryReturn {
   const state = useSyncExternalStore(store.subscribe, store.getState, store.getState);
 
   const push = useCallback(
-    (nodes: Node[], edges: Edge[], label?: string) => store.push(nodes, edges, label),
+    (nodes: Node[], edges: Edge[], meta?: HistoryEntryMeta | string) =>
+      store.push(nodes, edges, meta),
     [store],
   );
 

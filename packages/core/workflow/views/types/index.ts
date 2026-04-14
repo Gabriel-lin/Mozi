@@ -37,7 +37,7 @@ export type { LayoutOptions } from "./layout";
 
 // history
 export { historyEntrySchema } from "./history";
-export type { HistoryEntry, HistoryState } from "./history";
+export type { HistoryEntry, HistoryEntryMeta, HistoryOperation, HistoryState } from "./history";
 
 // plugin
 export { viewPluginSchema } from "./plugin";

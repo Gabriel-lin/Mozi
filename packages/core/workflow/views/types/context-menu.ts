@@ -20,4 +20,6 @@ export interface ContextMenuState {
   items: ContextMenuItem[];
   targetNodeId?: string;
   targetEdgeId?: string;
+  /** Present when the menu was triggered on a multi-node selection. */
+  targetNodeIds?: string[];
 }

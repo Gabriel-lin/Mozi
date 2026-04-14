@@ -1,13 +1,48 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ReactFlow, Background, BackgroundVariant, MiniMap, type Node } from "@xyflow/react";
+import { toast } from "sonner";
+import {
+  ReactFlow,
+  Background,
+  BackgroundVariant,
+  MiniMap,
+  type Node,
+  type Edge,
+  type ReactFlowInstance,
+  type OnSelectionChangeFunc,
+} from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
-import { workflowNodeTypes, workflowEdgeTypes, generateId } from "@mozi/core/workflow/views";
+import {
+  workflowNodeTypes,
+  workflowEdgeTypes,
+  generateId,
+  useContextMenu,
+  type ContextMenuItem,
+} from "@mozi/core/workflow/views";
 import { useWorkflow } from "./hooks";
+import { getDefaultBaseUrl } from "@/pages/workflow/llmProviderDefaults";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Save, Loader2, Play, Square } from "lucide-react";
+import {
+  ArrowLeft,
+  Save,
+  Loader2,
+  Play,
+  Square,
+  Trash2,
+  RotateCcw,
+  Scissors,
+  LayoutGrid,
+  LayoutTemplate,
+  ArrowLeftRight,
+  Network,
+  Eraser,
+  CheckSquare,
+  Group,
+  Tag,
+} from "lucide-react";
 
 import {
   CanvasToolbar,
@@ -15,6 +50,7 @@ import {
   ComponentPanel,
   ConfigDrawer,
   EmptyOverlay,
+  ContextMenuOverlay,
   type CanvasTool,
 } from "./components";
 
@@ -26,27 +62,257 @@ export function WorkflowEditPage() {
   const wf = useWorkflow({ workflowId: id });
   const [activeTool, setActiveTool] = useState<CanvasTool>("select");
   const [mainArea, setMainArea] = useState<HTMLDivElement | null>(null);
+  const reactFlowRef = useRef<ReactFlowInstance<Node, Edge> | null>(null);
 
   const nodeTypes = useMemo(() => workflowNodeTypes, []);
   const edgeTypes = useMemo(() => workflowEdgeTypes, []);
 
+  // ── Context menu factories ──
+
+  const nodeMenuItems = useCallback(
+    (nodeId: string): ContextMenuItem[] => {
+      const node = wf.rawNodes.find((n) => n.id === nodeId);
+      const isGroup = node?.type === "group";
+      const items: ContextMenuItem[] = [
+        {
+          id: "reset-config",
+          label: t("workflow.ctx.resetConfig", "重置配置"),
+          icon: <RotateCcw className="h-3.5 w-3.5" />,
+          onClick: () => wf.resetNodeConfig(nodeId),
+          disabled: isGroup,
+        },
+        {
+          id: "delete-node",
+          label: t("workflow.ctx.deleteNode", "删除节点"),
+          icon: <Trash2 className="h-3.5 w-3.5" />,
+          danger: true,
+          onClick: () => wf.deleteNode(nodeId),
+        },
+      ];
+      if (isGroup) {
+        items.splice(1, 0, {
+          id: "split-group",
+          label: t("workflow.ctx.splitGroup", "拆分分组"),
+          icon: <Scissors className="h-3.5 w-3.5" />,
+          onClick: () => wf.deleteGroup(nodeId),
+        });
+      }
+      return items;
+    },
+    [wf, t],
+  );
+
+  const edgeMenuItems = useCallback(
+    (edgeId: string): ContextMenuItem[] => [
+      {
+        id: "delete-edge",
+        label: t("workflow.ctx.deleteEdge", "删除连线"),
+        icon: <Trash2 className="h-3.5 w-3.5" />,
+        danger: true,
+        onClick: () => wf.deleteEdge(edgeId),
+      },
+    ],
+    [wf, t],
+  );
+
+  const fitAfterLayout = useCallback(() => {
+    reactFlowRef.current?.fitView({ padding: 0.2, duration: 280 });
+  }, []);
+
+  const canvasMenuItems = useCallback(
+    (): ContextMenuItem[] => [
+      {
+        id: "select-all",
+        label: t("workflow.ctx.selectAll"),
+        icon: <CheckSquare className="h-3.5 w-3.5" />,
+        shortcut: "⌘A",
+        onClick: () => wf.selectAll(),
+      },
+      {
+        id: "layout",
+        label: t("workflow.ctx.layout"),
+        icon: <LayoutGrid className="h-3.5 w-3.5" />,
+        children: [
+          {
+            id: "layout-compact",
+            label: t("workflow.ctx.layoutCompact"),
+            icon: <LayoutGrid className="h-3.5 w-3.5" />,
+            onClick: () => wf.applyLayout("compact", { onApplied: fitAfterLayout }),
+          },
+          {
+            id: "layout-sparse",
+            label: t("workflow.ctx.layoutSparse"),
+            icon: <LayoutTemplate className="h-3.5 w-3.5" />,
+            onClick: () => wf.applyLayout("sparse", { onApplied: fitAfterLayout }),
+          },
+          {
+            id: "layout-compact-lr",
+            label: t("workflow.ctx.layoutCompactLr"),
+            icon: <ArrowLeftRight className="h-3.5 w-3.5" />,
+            onClick: () => wf.applyLayout("compact_lr", { onApplied: fitAfterLayout }),
+          },
+          {
+            id: "layout-force",
+            label: t("workflow.ctx.layoutForce"),
+            icon: <Network className="h-3.5 w-3.5" />,
+            onClick: () => wf.applyLayout("force", { onApplied: fitAfterLayout }),
+          },
+        ],
+      },
+      { id: "separator", label: "" },
+      {
+        id: "clear-canvas",
+        label: t("workflow.ctx.clearCanvas"),
+        icon: <Eraser className="h-3.5 w-3.5" />,
+        danger: true,
+        onClick: () => wf.clearCanvas(),
+      },
+    ],
+    [wf, t, fitAfterLayout],
+  );
+
+  const selectionMenuItems = useCallback(
+    (nodeIds: string[]): ContextMenuItem[] => [
+      {
+        id: "merge-group",
+        label: t("workflow.ctx.mergeGroup", "合并节点"),
+        icon: <Group className="h-3.5 w-3.5" />,
+        onClick: () => wf.mergeToGroup(nodeIds),
+      },
+      {
+        id: "add-label",
+        label: t("workflow.ctx.addLabel", "添加标签"),
+        icon: <Tag className="h-3.5 w-3.5" />,
+        onClick: () => wf.addLabelGroup(nodeIds),
+      },
+    ],
+    [wf, t],
+  );
+
+  const ctxMenu = useContextMenu({
+    nodeItems: nodeMenuItems,
+    edgeItems: edgeMenuItems,
+    canvasItems: canvasMenuItems,
+    selectionItems: selectionMenuItems,
+  });
+
+  // ── Selection change: exclude start/end from box select ──
+  const onSelectionChange: OnSelectionChangeFunc = useCallback(
+    ({ nodes: selNodes }) => {
+      const startEndIds = selNodes
+        .filter((n) => {
+          const kind = (n.data as Record<string, unknown>)?.nodeKind;
+          return kind === "start" || kind === "end";
+        })
+        .map((n) => n.id);
+      if (startEndIds.length > 0) {
+        wf.setNodes((nds) =>
+          nds.map((n) => (startEndIds.includes(n.id) ? { ...n, selected: false } : n)),
+        );
+      }
+    },
+    [wf],
+  );
+
+  const handleSelectionContextMenu = useCallback(
+    (event: React.MouseEvent) => {
+      const selectedIds = wf.rawNodes.filter((n) => n.selected).map((n) => n.id);
+      if (selectedIds.length > 0) {
+        ctxMenu.onSelectionContextMenu(event, selectedIds);
+      }
+    },
+    [wf.rawNodes, ctxMenu],
+  );
+
+  const onFlowInit = useCallback((instance: ReactFlowInstance<Node, Edge>) => {
+    reactFlowRef.current = instance;
+  }, []);
+
+  const handlePaneClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (activeTool === "addText" && reactFlowRef.current) {
+        const pos = reactFlowRef.current.screenToFlowPosition({
+          x: e.clientX,
+          y: e.clientY,
+        });
+        const newNode: Node = {
+          id: generateId(),
+          type: "workflowText",
+          position: pos,
+          data: {
+            text: "文本",
+            inputs: [{ id: "in-1", label: "输入" }],
+            outputs: [{ id: "out-1", label: "输出" }],
+          },
+        };
+        wf.addNode(newNode);
+        setActiveTool("select");
+        ctxMenu.close();
+        return;
+      }
+      wf.clearSelection();
+      ctxMenu.close();
+    },
+    [activeTool, wf, ctxMenu],
+  );
+
+  const handleNodeClick = useCallback(
+    (event: React.MouseEvent, node: Node) => {
+      if (activeTool === "addText") {
+        setActiveTool("select");
+      }
+      wf.selectNode(event, node);
+    },
+    [activeTool, wf],
+  );
+
+  // ── Toast on run failure ──
+  useEffect(() => {
+    if (wf.runStatus === "failed" && wf.runError) {
+      toast.error(wf.runError, { duration: 3000 });
+    }
+  }, [wf.runStatus, wf.runError]);
+
   const nodesWithRunState = useMemo(() => {
-    if (!wf.nodeRunStates || Object.keys(wf.nodeRunStates).length === 0) return wf.nodes;
+    const hasStates = wf.nodeRunStates && Object.keys(wf.nodeRunStates).length > 0;
+    const runFailed = wf.runStatus === "failed";
+    if (!hasStates && !runFailed) return wf.nodes;
+
     return wf.nodes.map((n) => {
-      const rs = wf.nodeRunStates[n.id];
-      if (!rs) return n;
-      const cls =
-        rs.status === "running"
+      const rs = hasStates ? wf.nodeRunStates[n.id] : undefined;
+
+      // Per-node run state styling
+      const cls = rs
+        ? rs.status === "running"
           ? "wf-node-running"
           : rs.status === "completed"
             ? "wf-node-completed"
             : rs.status === "failed"
               ? "wf-node-failed"
-              : "";
-      if (!cls) return n;
-      return { ...n, className: [n.className, cls].filter(Boolean).join(" ") };
+              : ""
+        : "";
+
+      // Inject error info: per-node failure or run-level failure on non-completed nodes
+      let extra: Record<string, unknown> = {};
+      if (rs?.status === "failed" && rs.error) {
+        extra = { _runError: rs.error };
+      } else if (runFailed && wf.runError && rs?.status !== "completed") {
+        const nk = (n.data as Record<string, unknown>).nodeKind as string | undefined;
+        const isTerminal = nk === "start" || nk === "end";
+        if (!isTerminal) {
+          extra = { _runError: wf.runError };
+        }
+      }
+
+      const data = Object.keys(extra).length > 0 ? { ...n.data, ...extra } : n.data;
+      if (!cls && data === n.data) return n;
+      return {
+        ...n,
+        data,
+        className: cls ? [n.className, cls].filter(Boolean).join(" ") : n.className,
+      };
     });
-  }, [wf.nodes, wf.nodeRunStates]);
+  }, [wf.nodes, wf.nodeRunStates, wf.runStatus, wf.runError]);
 
   const edgesWithRunState = useMemo(() => {
     const rs = wf.nodeRunStates;
@@ -73,6 +339,14 @@ export function WorkflowEditPage() {
       if (data.type !== "node") return;
 
       const bounds = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      const position = reactFlowRef.current?.screenToFlowPosition({
+        x: e.clientX,
+        y: e.clientY,
+      }) ?? {
+        x: e.clientX - bounds.left,
+        y: e.clientY - bounds.top,
+      };
+
       const nodeType = data.nodeType || "workflowBase";
       const nodeKind = data.nodeKind as string | undefined;
       let nodeData: Record<string, unknown>;
@@ -88,11 +362,12 @@ export function WorkflowEditPage() {
           label: data.label,
           nodeKind: "llm",
           provider: "openai",
-          model: "",
+          model: "gpt-4o",
           apiKey: "",
-          apiBase: "",
+          base_url: getDefaultBaseUrl("openai"),
+          useCustomBaseUrl: false,
           protocol: "openai",
-          protocolAdapter: "",
+          protocolAdapter: "openai",
           temperature: 0.7,
           inputs: [{ id: "in-1", label: "输入" }],
           outputs: [{ id: "out-1", label: "输出" }],
@@ -128,7 +403,7 @@ export function WorkflowEditPage() {
       const newNode: Node = {
         id: generateId(),
         type: nodeType,
-        position: { x: e.clientX - bounds.left, y: e.clientY - bounds.top },
+        position,
         data: nodeData,
       };
       wf.addNode(newNode);
@@ -236,21 +511,32 @@ export function WorkflowEditPage() {
       {/* Main area */}
       <div ref={setMainArea} className="flex min-h-0 flex-1 relative">
         {/* Canvas */}
-        <div className="flex-1 min-w-0 relative" onDrop={onDrop} onDragOver={onDragOver}>
+        <div
+          className={cn("flex-1 min-w-0 relative", activeTool === "addText" && "cursor-crosshair")}
+          onDrop={onDrop}
+          onDragOver={onDragOver}
+        >
           <ReactFlow
             nodes={nodesWithRunState}
             edges={edgesWithRunState}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
+            onInit={onFlowInit}
             onNodesChange={wf.onNodesChange}
             onEdgesChange={wf.onEdgesChange}
             onConnect={wf.onConnect}
-            onNodeClick={wf.selectNode}
+            onNodeClick={handleNodeClick}
             onEdgeClick={wf.selectEdge}
-            onPaneClick={wf.clearSelection}
+            onPaneClick={handlePaneClick}
             onNodeDragStop={wf.onNodeDragStop}
+            onNodeContextMenu={(e, node) => ctxMenu.onNodeContextMenu(e, node.id)}
+            onEdgeContextMenu={(e, edge) => ctxMenu.onEdgeContextMenu(e, edge.id)}
+            onPaneContextMenu={(e) => ctxMenu.onPaneContextMenu(e as React.MouseEvent)}
+            onSelectionContextMenu={handleSelectionContextMenu}
+            onSelectionChange={onSelectionChange}
             panOnDrag={activeTool === "pan"}
             selectionOnDrag={activeTool === "select"}
+            multiSelectionKeyCode="Shift"
             fitView
             proOptions={{ hideAttribution: true }}
           >
@@ -261,7 +547,7 @@ export function WorkflowEditPage() {
               nodeColor={(node) => (node.type === "workflowText" ? "#818cf8" : "#60a5fa")}
               bgColor="hsl(var(--muted))"
               maskColor="hsl(var(--muted-foreground) / 0.15)"
-              style={{ left: 16, bottom: 60, width: 180, height: 120, borderRadius: 8 }}
+              className="!left-4 !bottom-[60px] !w-[180px] !h-[120px] !rounded-lg"
             />
           </ReactFlow>
 
@@ -285,6 +571,7 @@ export function WorkflowEditPage() {
       </div>
 
       <ConfigDrawer
+        historyCursor={wf.historyCursor}
         selectedNode={wf.selectedNode}
         selectedEdge={wf.selectedEdge}
         nodes={wf.rawNodes}
@@ -295,6 +582,8 @@ export function WorkflowEditPage() {
         onRevert={wf.revertPreview}
         container={mainArea}
       />
+
+      <ContextMenuOverlay state={ctxMenu.state} onClose={ctxMenu.close} />
     </div>
   );
 }

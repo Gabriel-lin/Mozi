@@ -1,7 +1,18 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Pagination } from "@/components/Pagination";
 import { workflowApi, type Workflow } from "@/services/workflow";
 import { workspaceApi } from "@/services/workspace";
@@ -15,6 +26,7 @@ import {
   CircleDot,
   Trash2,
   Loader2,
+  X,
 } from "lucide-react";
 
 const STATUS_STYLE: Record<string, string> = {
@@ -41,6 +53,7 @@ export function WorkflowPage() {
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Workflow | null>(null);
   const [running, setRunning] = useState<string | null>(null);
 
   useEffect(() => {
@@ -79,16 +92,24 @@ export function WorkflowPage() {
     fetchWorkflows(pageRef.current);
   }, [fetchWorkflows]);
 
-  const handleDelete = async (e: React.MouseEvent, id: string) => {
+  const handleDeleteClick = (e: React.MouseEvent, wf: Workflow) => {
     e.stopPropagation();
-    if (deleting) return;
+    setDeleteTarget(wf);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget || deleting) return;
+    const id = deleteTarget.id;
+    const name = deleteTarget.name;
+    setDeleteTarget(null);
     try {
       setDeleting(id);
       await workflowApi.delete(id);
+      toast.success(t("workflow.deleteSuccess", `工作流「${name}」已删除`));
       const nextPage = workflows.length === 1 && page > 1 ? page - 1 : page;
       await fetchWorkflows(nextPage);
     } catch {
-      // TODO: toast
+      toast.error(t("workflow.deleteFailed", "删除失败，请重试"));
     } finally {
       setDeleting(null);
     }
@@ -107,8 +128,9 @@ export function WorkflowPage() {
     try {
       setRunning(id);
       await workflowApi.run(id);
+      toast.success(t("workflow.runStarted", "工作流已开始运行"));
     } catch {
-      // TODO: toast
+      toast.error(t("workflow.runFailed", "运行失败，请重试"));
     } finally {
       setRunning(null);
     }
@@ -232,7 +254,7 @@ export function WorkflowPage() {
                   size="sm"
                   className="h-8 w-8 p-0 rounded-lg text-destructive hover:text-destructive hover:bg-destructive/10"
                   disabled={deleting === wf.id}
-                  onClick={(e) => handleDelete(e, wf.id)}
+                  onClick={(e) => handleDeleteClick(e, wf)}
                 >
                   {deleting === wf.id ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -282,6 +304,36 @@ export function WorkflowPage() {
           )}
         </p>
       </div>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <button
+            onClick={() => setDeleteTarget(null)}
+            className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+          >
+            <X className="h-4 w-4" />
+            <span className="sr-only">Close</span>
+          </button>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("workflow.deleteConfirmTitle", "确认删除")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t(
+                "workflow.deleteConfirmDesc",
+                `确定要删除工作流「${deleteTarget?.name ?? ""}」吗？此操作不可撤销，所有版本和运行记录将被永久删除。`,
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel", "取消")}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleDeleteConfirm}
+            >
+              {t("common.delete", "删除")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

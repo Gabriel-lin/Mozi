@@ -18,6 +18,8 @@ import { LLMConfigForm } from "./LLMConfigForm";
 import { AgentConfigForm } from "./AgentConfigForm";
 
 interface ConfigDrawerProps {
+  /** Bumps when undo/redo runs so config forms remount from graph state. */
+  historyCursor: number;
   selectedNode: Node | null;
   selectedEdge: Edge | null;
   nodes: Node[];
@@ -30,6 +32,7 @@ interface ConfigDrawerProps {
 }
 
 export function ConfigDrawer({
+  historyCursor,
   selectedNode,
   selectedEdge,
   nodes,
@@ -69,7 +72,8 @@ export function ConfigDrawer({
       <SheetPortal container={container}>
         <Content
           className={cn(
-            "absolute inset-y-0 right-0 z-50 flex h-full w-72 flex-col border-l bg-background shadow-lg",
+            "absolute inset-y-0 right-0 z-50 flex h-full max-w-full flex-col border-l bg-background shadow-lg",
+            "w-full max-w-[min(100%,22rem)] sm:max-w-none sm:w-80 md:w-96 lg:w-[26rem] xl:w-[28rem]",
             "transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out",
             "data-[state=closed]:duration-300 data-[state=open]:duration-500",
             "data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
@@ -97,7 +101,7 @@ export function ConfigDrawer({
               if (kind === "llm")
                 return (
                   <LLMConfigForm
-                    key={selectedNode.id}
+                    key={`${selectedNode.id}-${historyCursor}`}
                     node={selectedNode}
                     onPreview={onPreviewNode}
                     onConfirm={handleConfirm}
@@ -106,7 +110,7 @@ export function ConfigDrawer({
               if (kind === "agent")
                 return (
                   <AgentConfigForm
-                    key={selectedNode.id}
+                    key={`${selectedNode.id}-${historyCursor}`}
                     node={selectedNode}
                     nodes={nodes}
                     onPreview={onPreviewNode}
@@ -115,7 +119,7 @@ export function ConfigDrawer({
                 );
               return (
                 <NodeConfigForm
-                  key={selectedNode.id}
+                  key={`${selectedNode.id}-${historyCursor}`}
                   node={selectedNode}
                   onPreview={onPreviewNode}
                   onConfirm={handleConfirm}
@@ -125,7 +129,7 @@ export function ConfigDrawer({
 
           {selectedEdge && (
             <EdgeConfigForm
-              key={selectedEdge.id}
+              key={`${selectedEdge.id}-${historyCursor}`}
               edge={selectedEdge}
               nodes={nodes}
               onPreview={onPreviewEdge}

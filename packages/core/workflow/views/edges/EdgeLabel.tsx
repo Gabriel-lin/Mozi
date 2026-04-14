@@ -23,19 +23,16 @@ export function EdgeLabelRenderer({ config, pathRef }: Props) {
           y={-10 - padY}
           rx={4}
           ry={4}
-          style={{ fill: config.bgColor }}
+          fill={config.bgColor}
         />
       )}
       <text
         textAnchor="middle"
         dy="-4"
-        style={{
-          fontSize: config.fontSize ?? 11,
-          fill: config.color ?? "#64748b",
-          fontFamily: "inherit",
-          pointerEvents: "none",
-          userSelect: "none",
-        }}
+        fontSize={config.fontSize ?? 11}
+        fill={config.color ?? "#64748b"}
+        fontFamily="inherit"
+        className="pointer-events-none select-none"
       >
         {config.text}
       </text>

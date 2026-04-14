@@ -8,5 +8,8 @@
   "python.analysis.diagnosticMode": "openFilesOnly",
   "[python]": {
     "editor.defaultFormatter": "ms-python.python"
-  }
+  },
+  "i18n-ally.localesPaths": [
+    "src/locales"
+  ]
 }

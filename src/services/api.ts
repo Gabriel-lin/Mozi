@@ -61,7 +61,7 @@ class ApiClient {
       cfg = await interceptor(cfg);
     }
 
-    const { url, params, skipAuth: _, ...init } = cfg;
+    const { url, params, skipAuth: _skipAuth, ...init } = cfg;
 
     let fullUrl = url.startsWith("http") ? url : `${this.baseUrl}${url}`;
 
