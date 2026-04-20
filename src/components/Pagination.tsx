@@ -26,9 +26,13 @@ export function Pagination({
   const [sizeOpen, setSizeOpen] = useState(false);
   const sizeRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  // 同步外部 `page` prop 到 `jumpInput` 本地状态：
+  // 参考 React 官方 "adjusting state while rendering" 模式，避免在 useEffect 中 setState。
+  const [trackedPage, setTrackedPage] = useState(page);
+  if (page !== trackedPage) {
+    setTrackedPage(page);
     setJumpInput(String(page));
-  }, [page]);
+  }
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {

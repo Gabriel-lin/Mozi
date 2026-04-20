@@ -1,23 +1,25 @@
 {
   "name": "Mozi",
   "version": "0.1.0",
-  "description": "A dynamic line chart application built with React and ECharts",
+  "description": "An intelligent agent-based, orchestrated AI project",
   "homepage": "https://your-project-homepage.com",
   "author": {
-    "name": "Your Name",
-    "email": "your.email@example.com"
+    "name": "gab",
+    "email": "2823283465@qq.com"
   },
   "private": true,
   "type": "module",
-  "workspaces": [
-    "packages/*"
-  ],
+  "packageManager": "pnpm@10.9.0",
+  "engines": {
+    "pnpm": ">=10",
+    "node": ">=22"
+  },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
     "@kuyoonjo/tauri-plugin-appearance": "^0.5.0",
     "@lobehub/icons-static-png": "^1.75.0",
-    "@mozi/core": "*",
-    "@mozi/store": "*",
+    "@mozi/core": "workspace:*",
+    "@mozi/store": "workspace:*",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
@@ -62,14 +64,14 @@
   "scripts": {
     "dev": "vite",
     "server:dev": "cd server && uv run uvicorn services.auth.main:app --reload --port 3001",
-    "dev:all": "npm run dev & npm run server:dev",
+    "dev:all": "pnpm run dev & pnpm run server:dev",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint src --ext .ts,.tsx",
     "lint:fix": "eslint src --ext .ts,.tsx --fix && prettier --write \"src/**/*.{ts,tsx,css,json}\"",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
     "format:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --verbose",
-    "format:all": "npm run lint:fix && npm run format:rust",
+    "format:all": "pnpm run lint:fix && pnpm run format:rust",
     "tauri": "cargo tauri",
     "tauri:dev": "cargo tauri dev",
     "tauri:build": "cargo tauri build",

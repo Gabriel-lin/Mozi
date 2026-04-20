@@ -144,10 +144,15 @@ export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
 
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
+  // 维护一个与最新值同步的 ref，给 useCallback 句柄和 queueMicrotask 延迟调用使用，
+  // 这样它们无需把 nodes/edges 放进依赖数组。ref 的写入必须在 useEffect 内完成，
+  // 而非渲染期间——避免 `react-hooks/refs` 告警。
   const nodesRef = useRef(nodes);
   const edgesRef = useRef(edges);
-  nodesRef.current = nodes;
-  edgesRef.current = edges;
+  useEffect(() => {
+    nodesRef.current = nodes;
+    edgesRef.current = edges;
+  });
 
   const historySeededForWorkflow = useRef<string | null>(null);
   const lastRecordedHistorySigRef = useRef<string | null>(null);
@@ -254,11 +259,18 @@ export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
     });
   }, [workflowId, loading, nodes, edges, history, recordGraphSnapshot]);
 
+  // 当 `workflowId` 变化时同步拉起 loading 态。
+  // "adjust state while rendering" 模式取代 effect 内的同步 setState。
+  const [trackedWorkflowId, setTrackedWorkflowId] = useState(workflowId);
+  if (workflowId !== trackedWorkflowId) {
+    setTrackedWorkflowId(workflowId);
+    setLoading(!!workflowId);
+  }
+
   // ── Load workflow + latest version ──
   useEffect(() => {
     if (!workflowId) return;
     let cancelled = false;
-    setLoading(true);
 
     (async () => {
       try {

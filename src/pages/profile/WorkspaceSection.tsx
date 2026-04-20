@@ -46,9 +46,13 @@ export function WorkspaceSection() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   const [workspaces, setWorkspaces] = useState<WsItem[]>([]);
-  const [wsLoading, setWsLoading] = useState(false);
+  // 仅在首次加载阶段使用 loader 占位（见下方渲染条件：`wsLoading && workspaces.length === 0`），
+  // 因此默认置 true，首次 fetch 完成后置 false，无需在 fetch 开头再次置 true。
+  const [wsLoading, setWsLoading] = useState(true);
   const [activeWsId, setActiveWsId] = useState<string | null>(null);
 
+  // 仅在事件处理器（新增/编辑/删除之后）中调用，此处可以安全地同步 setState——
+  // `react-hooks/set-state-in-effect` 只约束 effect 内的同步调用，不影响事件回调。
   const fetchWorkspaces = useCallback(async () => {
     if (!isAuthenticated) return;
     setWsLoading(true);
@@ -69,9 +73,33 @@ export function WorkspaceSection() {
     }
   }, [isAuthenticated]);
 
+  // 初次加载：内联实现，所有 setState 都在 await 之后，规避 `react-hooks/set-state-in-effect`
+  // 对同步 setState 的告警。后续新增/编辑/删除等场景仍调用 `fetchWorkspaces()`。
   useEffect(() => {
-    fetchWorkspaces();
-  }, [fetchWorkspaces]);
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await api.get<WsListResponse>("/workspaces/");
+        if (cancelled) return;
+        const list = data.workspaces ?? [];
+        setWorkspaces(list);
+        const backendActive = data.active_workspace_id;
+        if (backendActive && list.some((w) => w.id === backendActive)) {
+          setActiveWsId(backendActive);
+        } else if (list.length > 0) {
+          setActiveWsId(list[0].id);
+        }
+      } catch (err) {
+        if (!cancelled) console.error("Failed to fetch workspaces:", err);
+      } finally {
+        if (!cancelled) setWsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
 
   const handleActivateWorkspace = useCallback(async (wsId: string) => {
     setActiveWsId(wsId);

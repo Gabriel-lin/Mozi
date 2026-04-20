@@ -188,10 +188,13 @@ export function LLMConfigForm({ node, onPreview, onConfirm }: LLMConfigFormProps
   const graphLabel = String(d.label ?? "LLM");
 
   const [label, setLabel] = useState(graphLabel);
-
-  useEffect(() => {
+  // 画布 inline 编辑后，`graphLabel` 会变化，需要同步到本地表单状态。
+  // 使用 "adjust state while rendering" 模式代替 useEffect + setState。
+  const [trackedGraphLabel, setTrackedGraphLabel] = useState(graphLabel);
+  if (graphLabel !== trackedGraphLabel) {
+    setTrackedGraphLabel(graphLabel);
     setLabel(graphLabel);
-  }, [graphLabel]);
+  }
   const [provider, setProvider] = useState<Provider>((d.provider as Provider) ?? "openai");
   const [model, setModel] = useState(String(d.model ?? ""));
   const [apiKey, setApiKey] = useState(String(d.apiKey ?? ""));
