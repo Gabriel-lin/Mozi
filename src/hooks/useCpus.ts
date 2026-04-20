@@ -49,9 +49,11 @@ export const useCpus = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
 
+  // 对外导出的 refetch：由调用方在事件处理器中手动触发，同步 setState(true) 合法。
+  // effect 内的初始加载与轮询见下方内联实现，那里不再复用此回调以避免规则告警。
   const fetchSystemInfo = useCallback(async () => {
+    setLoading(true);
     try {
-      setLoading(true);
       const systemInfo = (await invoke("get_system_info")) as SystemInfo;
 
       // 使用深度比较，只在数据实际变化时更新
@@ -84,11 +86,36 @@ export const useCpus = () => {
     };
   }, [cpuInfo]);
 
+  // 初始加载 + 轮询：内联异步实现，所有 setState 都在 await 之后发生，
+  // 规避 `react-hooks/set-state-in-effect` 对同步 setState 调用的告警。
   useEffect(() => {
-    fetchSystemInfo();
-    const intervalId = setInterval(fetchSystemInfo, 100);
-    return () => clearInterval(intervalId);
-  }, [fetchSystemInfo]);
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const systemInfo = (await invoke("get_system_info")) as SystemInfo;
+        if (cancelled) return;
+        setCpuInfo((prevInfo) => {
+          if (!prevInfo || !isDeepEqual(prevInfo, systemInfo)) return systemInfo;
+          return prevInfo;
+        });
+        setError(null);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err : new Error("获取系统信息失败"));
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void tick();
+    const intervalId = setInterval(() => {
+      void tick();
+    }, 100);
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, []);
 
   return {
     cpuInfo: processedCpuInfo,

@@ -64,10 +64,14 @@ export function LoginPage() {
 
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? "/home";
 
+  // 只在异步回调里用到的 "latest value ref"：写入必须放到 useEffect 中，
+  // 渲染期间直接赋值会触发 `react-hooks/refs` 报错。
   const navigateRef = useRef(navigate);
-  navigateRef.current = navigate;
   const fromRef = useRef(from);
-  fromRef.current = from;
+  useEffect(() => {
+    navigateRef.current = navigate;
+    fromRef.current = from;
+  });
 
   useEffect(() => {
     if (isAuthenticated) {

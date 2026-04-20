@@ -85,8 +85,12 @@ export function WorkflowPage() {
     [workspaceId, pageSize],
   );
 
+  // 保存最新 `page` 用于下面的副作用，避免把 `page` 加进依赖导致循环。
+  // ref 写入必须放到 useEffect 中而非渲染期间（react-hooks/refs）。
   const pageRef = React.useRef(page);
-  pageRef.current = page;
+  useEffect(() => {
+    pageRef.current = page;
+  });
 
   useEffect(() => {
     fetchWorkflows(pageRef.current);
