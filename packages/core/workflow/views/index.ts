@@ -1,6 +1,13 @@
 // ─── Nodes ───────────────────────────────────────────────────────────────────
-export { BaseNode, TextNode, GroupNode } from "./nodes";
-export type { BaseNodeProps, TextNodeProps, GroupNodeData, GroupNodeProps } from "./nodes";
+export { BaseNode, TextNode, GroupNode, applyCollapseToggleToNode } from "./nodes";
+export type {
+  BaseNodeProps,
+  TextNodeProps,
+  GroupNodeData,
+  GroupNodeProps,
+  WorkflowGroupCollapsedChildSnapshot,
+  WorkflowGroupCollapsedLayoutBackup,
+} from "./nodes";
 
 // ─── Edges ───────────────────────────────────────────────────────────────────
 export {
@@ -13,13 +20,18 @@ export {
 export type { WorkflowEdgeProps } from "./edges";
 
 // ─── Hooks ───────────────────────────────────────────────────────────────────
-export { useHistory, useContextMenu } from "./hooks";
+export { useHistory, useContextMenu, useWorkflowNodeResize, useCollapsedGroupMemberRow } from "./hooks";
 export type {
   UseHistoryOptions,
   UseHistoryReturn,
   UseContextMenuOptions,
   UseContextMenuReturn,
+  UseWorkflowNodeResizeOptions,
+  UseWorkflowNodeResizeReturn,
+  WorkflowCollapsedGroupMemberRowState,
 } from "./hooks";
+export type { WorkflowNodeMinDimensions, NodeChromeVariant } from "./nodes";
+export { TERMINAL_NODE_MIN_W, TERMINAL_NODE_MIN_H, TERMINAL_NODE_EXPANDED_DIMS } from "./nodes";
 
 // ─── Plugins ─────────────────────────────────────────────────────────────────
 export { createPluginRegistry, PluginRenderer } from "./plugins";
@@ -32,6 +44,9 @@ export type { WorkflowNavProps, WorkflowMiniMapProps } from "./nav";
 // ─── Utils ───────────────────────────────────────────────────────────────────
 export {
   generateId,
+  parseCssSize,
+  stripWorkflowNodeSizingStyle,
+  mergeWorkflowNodeStyleForGroupExpand,
   distance,
   midpoint,
   clamp,

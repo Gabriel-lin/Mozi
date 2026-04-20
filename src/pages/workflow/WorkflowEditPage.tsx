@@ -41,7 +41,6 @@ import {
   Eraser,
   CheckSquare,
   Group,
-  Tag,
 } from "lucide-react";
 
 import {
@@ -69,11 +68,47 @@ export function WorkflowEditPage() {
 
   // ── Context menu factories ──
 
+  const selectionMenuItems = useCallback(
+    (nodeIds: string[]): ContextMenuItem[] => {
+      const ids = nodeIds.filter((id) => {
+        const n = wf.rawNodes.find((x) => x.id === id);
+        return n && n.type !== "group";
+      });
+      const items: ContextMenuItem[] = [];
+      if (ids.length >= 2) {
+        items.push({
+          id: "merge-group",
+          label: t("workflow.ctx.mergeGroup", "合并组"),
+          icon: <Group className="h-3.5 w-3.5" />,
+          onClick: () => wf.mergeToGroup(ids),
+        });
+      }
+      return items;
+    },
+    [wf, t],
+  );
+
   const nodeMenuItems = useCallback(
     (nodeId: string): ContextMenuItem[] => {
       const node = wf.rawNodes.find((n) => n.id === nodeId);
       const isGroup = node?.type === "group";
-      const items: ContextMenuItem[] = [
+      const selectedIds = wf.rawNodes.filter((n) => n.selected).map((n) => n.id);
+      const nonGroupSelected = selectedIds.filter((id) => {
+        const n = wf.rawNodes.find((x) => x.id === id);
+        return n && n.type !== "group";
+      });
+
+      const items: ContextMenuItem[] = [];
+      /** 多选时右键点在某一节点上会走节点菜单，不会走选区矩形上的 onSelectionContextMenu */
+      if (!isGroup && selectedIds.includes(nodeId) && nonGroupSelected.length >= 2) {
+        const selItems = selectionMenuItems(nonGroupSelected);
+        if (selItems.length > 0) {
+          items.push(...selItems);
+          items.push({ id: "sep-multi", label: "" });
+        }
+      }
+
+      items.push(
         {
           id: "reset-config",
           label: t("workflow.ctx.resetConfig", "重置配置"),
@@ -88,9 +123,9 @@ export function WorkflowEditPage() {
           danger: true,
           onClick: () => wf.deleteNode(nodeId),
         },
-      ];
+      );
       if (isGroup) {
-        items.splice(1, 0, {
+        items.splice(items.length - 1, 0, {
           id: "split-group",
           label: t("workflow.ctx.splitGroup", "拆分分组"),
           icon: <Scissors className="h-3.5 w-3.5" />,
@@ -99,7 +134,7 @@ export function WorkflowEditPage() {
       }
       return items;
     },
-    [wf, t],
+    [wf, t, selectionMenuItems],
   );
 
   const edgeMenuItems = useCallback(
@@ -171,24 +206,6 @@ export function WorkflowEditPage() {
     [wf, t, fitAfterLayout],
   );
 
-  const selectionMenuItems = useCallback(
-    (nodeIds: string[]): ContextMenuItem[] => [
-      {
-        id: "merge-group",
-        label: t("workflow.ctx.mergeGroup", "合并节点"),
-        icon: <Group className="h-3.5 w-3.5" />,
-        onClick: () => wf.mergeToGroup(nodeIds),
-      },
-      {
-        id: "add-label",
-        label: t("workflow.ctx.addLabel", "添加标签"),
-        icon: <Tag className="h-3.5 w-3.5" />,
-        onClick: () => wf.addLabelGroup(nodeIds),
-      },
-    ],
-    [wf, t],
-  );
-
   const ctxMenu = useContextMenu({
     nodeItems: nodeMenuItems,
     edgeItems: edgeMenuItems,
@@ -215,10 +232,15 @@ export function WorkflowEditPage() {
   );
 
   const handleSelectionContextMenu = useCallback(
-    (event: React.MouseEvent) => {
-      const selectedIds = wf.rawNodes.filter((n) => n.selected).map((n) => n.id);
-      if (selectedIds.length > 0) {
-        ctxMenu.onSelectionContextMenu(event, selectedIds);
+    (event: React.MouseEvent, nodes: Node[]) => {
+      const ids = nodes
+        .map((n) => n.id)
+        .filter((id) => {
+          const n = wf.rawNodes.find((x) => x.id === id);
+          return n && n.type !== "group";
+        });
+      if (ids.length >= 2) {
+        ctxMenu.onSelectionContextMenu(event, ids);
       }
     },
     [wf.rawNodes, ctxMenu],
@@ -226,6 +248,14 @@ export function WorkflowEditPage() {
 
   const onFlowInit = useCallback((instance: ReactFlowInstance<Node, Edge>) => {
     reactFlowRef.current = instance;
+  }, []);
+
+  const handleCanvasZoomIn = useCallback(() => {
+    reactFlowRef.current?.zoomIn({ duration: 200 });
+  }, []);
+
+  const handleCanvasZoomOut = useCallback(() => {
+    reactFlowRef.current?.zoomOut({ duration: 200 });
   }, []);
 
   const handlePaneClick = useCallback(
@@ -261,7 +291,11 @@ export function WorkflowEditPage() {
       if (activeTool === "addText") {
         setActiveTool("select");
       }
-      wf.selectNode(event, node);
+      if (event.shiftKey) {
+        wf.blurDrawerSelection();
+      } else {
+        wf.selectNode(event, node);
+      }
     },
     [activeTool, wf],
   );
@@ -532,11 +566,15 @@ export function WorkflowEditPage() {
             onNodeContextMenu={(e, node) => ctxMenu.onNodeContextMenu(e, node.id)}
             onEdgeContextMenu={(e, edge) => ctxMenu.onEdgeContextMenu(e, edge.id)}
             onPaneContextMenu={(e) => ctxMenu.onPaneContextMenu(e as React.MouseEvent)}
-            onSelectionContextMenu={handleSelectionContextMenu}
+            onSelectionContextMenu={(e, nodes) =>
+              handleSelectionContextMenu(e as React.MouseEvent, nodes)
+            }
             onSelectionChange={onSelectionChange}
             panOnDrag={activeTool === "pan"}
             selectionOnDrag={activeTool === "select"}
             multiSelectionKeyCode="Shift"
+            elementsSelectable={activeTool === "select"}
+            nodesDraggable={activeTool === "select"}
             fitView
             proOptions={{ hideAttribution: true }}
           >
@@ -554,7 +592,12 @@ export function WorkflowEditPage() {
           {isEmpty && <EmptyOverlay />}
 
           <div className="absolute top-4 left-4 z-20">
-            <CanvasToolbar activeTool={activeTool} onToolChange={setActiveTool} />
+            <CanvasToolbar
+              activeTool={activeTool}
+              onToolChange={setActiveTool}
+              onZoomIn={handleCanvasZoomIn}
+              onZoomOut={handleCanvasZoomOut}
+            />
           </div>
 
           <div className="absolute bottom-4 left-4 z-20">
@@ -575,6 +618,7 @@ export function WorkflowEditPage() {
         selectedNode={wf.selectedNode}
         selectedEdge={wf.selectedEdge}
         nodes={wf.rawNodes}
+        nodeRunStates={wf.nodeRunStates}
         onClose={wf.clearSelection}
         onPreviewNode={wf.previewNode}
         onPreviewEdge={wf.previewEdge}

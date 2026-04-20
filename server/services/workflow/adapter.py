@@ -11,6 +11,8 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
+from .validator import is_executable_node
+
 log = structlog.get_logger()
 
 
@@ -23,9 +25,47 @@ class WorkflowState(TypedDict, total=False):
     current_input: str
 
 
+# ── Node execution errors ──
+
+
+class NodeExecutionError(Exception):
+    """Exception raised inside a node function; carries the failing node id.
+
+    The engine unwraps this to attribute errors to a specific node and emit
+    a ``node_error`` event before the terminal ``run_failed`` event.
+    """
+
+    def __init__(self, node_id: str, cause: BaseException):
+        self.node_id = node_id
+        self.cause = cause
+        super().__init__(f"node {node_id} failed: {cause}")
+
+
 # ── LLM factory ──
 
+# Default per-request timeout. Kept generous because downstream workflows
+# may chain slow models / long prompts; individual nodes can still
+# override via ``data.timeout`` if they need something tighter or looser.
 DEFAULT_REQUEST_TIMEOUT = 120  # seconds
+
+# Providers that can be used without an API key (local / self-hosted).
+_KEYLESS_PROVIDERS = frozenset({"ollama", "local", ""})
+
+
+def _preflight_llm_config(node_data: dict) -> None:
+    """Validate runtime-only LLM config. Raise ``ValueError`` on failure.
+
+    Called right before invoking the model so that a missing API key /
+    misconfigured provider fails fast at the exact node instead of hanging
+    on a blocked HTTP call.
+    """
+    provider = (node_data.get("provider") or "").strip()
+    if provider and provider.lower() not in _KEYLESS_PROVIDERS:
+        api_key = (node_data.get("apiKey") or "").strip()
+        if not api_key:
+            raise ValueError(
+                f"缺少 API Key（{provider}），请在节点配置中填写后重试"
+            )
 
 def _create_chat_model(node_data: dict) -> BaseChatModel:
     """Build a LangChain ChatModel from node configuration."""
@@ -108,7 +148,11 @@ class WorkflowGraphBuilder:
     """Transforms a frontend workflow graph_data dict into a compiled LangGraph."""
 
     def __init__(self, graph_data: dict):
-        self.raw_nodes: list[dict] = graph_data.get("nodes") or []
+        # Visual-only React Flow containers (type: "group") have no runtime
+        # behavior; strip them before compiling so the LangGraph DAG contains
+        # only executable nodes wired by user-defined edges.
+        all_nodes: list[dict] = graph_data.get("nodes") or []
+        self.raw_nodes: list[dict] = [n for n in all_nodes if is_executable_node(n)]
         self.raw_edges: list[dict] = graph_data.get("edges") or []
         self.node_map: dict[str, dict] = {n["id"]: n for n in self.raw_nodes}
         self.kind_map: dict[str, str] = {n["id"]: _get_node_kind(n) for n in self.raw_nodes}
@@ -188,13 +232,21 @@ class WorkflowGraphBuilder:
         llm = _create_chat_model(data)
 
         async def llm_node(state: WorkflowState) -> dict:
+            try:
+                _preflight_llm_config(data)
+            except ValueError as exc:
+                raise NodeExecutionError(nid, exc) from exc
+
             messages = list(state.get("messages") or [])
             if not messages:
                 current = state.get("current_input", "")
                 if current:
                     messages.append(HumanMessage(content=current))
 
-            response = await llm.ainvoke(messages)
+            try:
+                response = await llm.ainvoke(messages)
+            except BaseException as exc:
+                raise NodeExecutionError(nid, exc) from exc
             content = response.content if hasattr(response, "content") else str(response)
 
             return {
@@ -221,6 +273,11 @@ class WorkflowGraphBuilder:
         llm = _create_chat_model(llm_data)
 
         async def agent_node(state: WorkflowState) -> dict:
+            try:
+                _preflight_llm_config(llm_data)
+            except ValueError as exc:
+                raise NodeExecutionError(nid, exc) from exc
+
             messages: list[Any] = []
             if system_prompt:
                 messages.append(SystemMessage(content=system_prompt))
@@ -230,7 +287,10 @@ class WorkflowGraphBuilder:
             if prompt:
                 messages.append(HumanMessage(content=prompt))
 
-            response = await llm.ainvoke(messages)
+            try:
+                response = await llm.ainvoke(messages)
+            except BaseException as exc:
+                raise NodeExecutionError(nid, exc) from exc
             content = response.content if hasattr(response, "content") else str(response)
 
             return {

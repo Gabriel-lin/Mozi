@@ -1,4 +1,4 @@
-import React, { useRef, useCallback, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 
 interface ImeInputProps extends Omit<React.ComponentProps<typeof Input>, "onChange"> {
@@ -7,43 +7,52 @@ interface ImeInputProps extends Omit<React.ComponentProps<typeof Input>, "onChan
 }
 
 /**
- * Input wrapper that keeps a local mirror so React never resets the DOM
- * during IME composition. External onValueChange is deferred until
- * compositionEnd for CJK input methods.
+ * Input wrapper that tolerates IME composition without losing the parent
+ * value as the source of truth.
  *
- * The component is expected to be keyed (remounted) when the editing
- * target changes, so no external→local sync is needed.
+ * - While not composing: the DOM value comes straight from `value`, so any
+ *   external change (e.g. the same field being edited elsewhere like the
+ *   inline node label) immediately reflects here.
+ * - While composing (CJK IME): we buffer locally so React doesn't reset the
+ *   DOM mid-composition. `onValueChange` fires on compositionEnd instead of
+ *   on every intermediate change.
  */
 export function ImeInput({ value, onValueChange, ...props }: ImeInputProps) {
   const composingRef = useRef(false);
-  const [local, setLocal] = useState(value);
+  const [composingText, setComposingText] = useState<string | null>(null);
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const v = e.target.value;
-      setLocal(v);
-      if (!composingRef.current) onValueChange(v);
+      if (composingRef.current) {
+        setComposingText(v);
+      } else {
+        onValueChange(v);
+      }
     },
     [onValueChange],
   );
 
-  const handleCompositionStart = useCallback(() => {
+  const handleCompositionStart = useCallback((e: React.CompositionEvent<HTMLInputElement>) => {
     composingRef.current = true;
+    setComposingText(e.currentTarget.value);
   }, []);
 
   const handleCompositionEnd = useCallback(
     (e: React.CompositionEvent<HTMLInputElement>) => {
       composingRef.current = false;
       const v = e.currentTarget.value;
-      setLocal(v);
+      setComposingText(null);
       onValueChange(v);
     },
     [onValueChange],
   );
 
+  const displayValue = composingText ?? value;
+
   return (
     <Input
-      value={local}
+      value={displayValue}
       onChange={handleChange}
       onCompositionStart={handleCompositionStart}
       onCompositionEnd={handleCompositionEnd}

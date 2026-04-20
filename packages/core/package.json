@@ -26,6 +26,7 @@
     "./workflow/views/utils/arrows": "./workflow/views/utils/arrows.ts",
     "./workflow/views/utils/layout": "./workflow/views/utils/layout.ts",
     "./workflow/views/utils/serialization": "./workflow/views/utils/serialization.ts",
+    "./workflow/views/utils/nodeStyle": "./workflow/views/utils/nodeStyle.ts",
     "./workflow/views/nodes": "./workflow/views/nodes/index.ts",
     "./workflow/views/edges": "./workflow/views/edges/index.ts",
     "./workflow/views/hooks": "./workflow/views/hooks/index.ts",

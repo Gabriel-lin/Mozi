@@ -185,8 +185,13 @@ function useProviderModels(provider: Provider, apiKey?: string, apiBase?: string
 export function LLMConfigForm({ node, onPreview, onConfirm }: LLMConfigFormProps) {
   const { t } = useTranslation();
   const d = getData(node);
+  const graphLabel = String(d.label ?? "LLM");
 
-  const [label, setLabel] = useState(String(d.label ?? "LLM"));
+  const [label, setLabel] = useState(graphLabel);
+
+  useEffect(() => {
+    setLabel(graphLabel);
+  }, [graphLabel]);
   const [provider, setProvider] = useState<Provider>((d.provider as Provider) ?? "openai");
   const [model, setModel] = useState(String(d.model ?? ""));
   const [apiKey, setApiKey] = useState(String(d.apiKey ?? ""));

@@ -97,8 +97,13 @@ function TagList({
 export function AgentConfigForm({ node, nodes, onPreview, onConfirm }: AgentConfigFormProps) {
   const { t } = useTranslation();
   const d = getData(node);
+  const graphLabel = String(d.label ?? "Agent");
 
-  const [label, setLabel] = useState(String(d.label ?? "Agent"));
+  const [label, setLabel] = useState(graphLabel);
+
+  useEffect(() => {
+    setLabel(graphLabel);
+  }, [graphLabel]);
   const [llmNodeId, setLlmNodeId] = useState(String(d.llmNodeId ?? ""));
   const [systemPrompt, setSystemPrompt] = useState(String(d.systemPrompt ?? ""));
   const [userPrompt, setUserPrompt] = useState(String(d.userPrompt ?? ""));

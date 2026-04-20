@@ -107,6 +107,7 @@ export function useContextMenu(options: UseContextMenuOptions = {}): UseContextM
       event.preventDefault();
       event.stopPropagation();
       const items = options.selectionItems?.(nodeIds) ?? options.items ?? [];
+      if (items.length === 0) return;
       store.open({ x: event.clientX, y: event.clientY }, items, { nodeIds });
     },
     [store, options.selectionItems, options.items],
