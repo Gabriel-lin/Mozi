@@ -10,7 +10,7 @@ from typing import Any
 import structlog
 from redis.asyncio import Redis
 
-from .adapter import WorkflowGraphBuilder, WorkflowState
+from .adapter import NodeExecutionError, WorkflowGraphBuilder, WorkflowState
 
 log = structlog.get_logger()
 
@@ -25,13 +25,33 @@ def _ts() -> int:
 
 def _format_run_error(exc: BaseException) -> str:
     """Make opaque client errors easier to diagnose (often confused with WS failures)."""
-    s = str(exc).strip()
+    # Unwrap NodeExecutionError to diagnose on the underlying cause.
+    root: BaseException = exc.cause if isinstance(exc, NodeExecutionError) else exc
+    type_name = type(root).__name__
+    s = str(root).strip()
+
     if s in ("Connection error.", "Connection error"):
         return (
             "无法连接大模型服务（Connection error）。"
             "请检查 base_url / 网络 / 代理 / 防火墙，以及模型供应商接口是否可达。"
         )
-    return str(exc)
+
+    # Timeout detection — covers openai.APITimeoutError, httpx.*Timeout*,
+    # asyncio.TimeoutError, and anything whose class name contains "Timeout".
+    if "Timeout" in type_name or "timed out" in s.lower():
+        return (
+            "大模型请求超时（Request timeout）。"
+            "请检查 base_url 是否可达、网络是否畅通，或在节点配置中调大 timeout。"
+        )
+
+    # Auth failures — surface a hint when the API key is missing / wrong.
+    if "401" in s or "Unauthorized" in s or "invalid_api_key" in s.lower():
+        return (
+            "大模型鉴权失败（401 Unauthorized）。"
+            "请检查节点的 API Key 是否正确、是否有效。"
+        )
+
+    return str(root) or type_name
 
 
 class WorkflowEngine:
@@ -180,9 +200,28 @@ class WorkflowEngine:
         except Exception as exc:
             log.error("workflow_execution_error", run_id=self.run_id, error=str(exc))
             err_msg = _format_run_error(exc)
+
+            # Attribute the error to a specific node when we can, so the
+            # UI highlights exactly where the run died.
+            failing_node_id: str | None = None
+            if isinstance(exc, NodeExecutionError):
+                failing_node_id = exc.node_id
+            if failing_node_id:
+                await self.publish({
+                    "type": "node_error",
+                    "node_id": failing_node_id,
+                    "error": err_msg,
+                })
+                node_results.append({
+                    "node_id": failing_node_id,
+                    "status": "failed",
+                    "error": err_msg,
+                })
+
             await self.publish({
                 "type": "run_failed",
                 "error": err_msg,
+                "node_id": failing_node_id,
             })
             return {
                 "status": "failed",

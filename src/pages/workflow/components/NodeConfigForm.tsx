@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Check } from "lucide-react";
 import type { Node } from "@xyflow/react";
@@ -14,17 +14,24 @@ interface NodeConfigFormProps {
   onConfirm: () => void;
 }
 
+/**
+ * Fully controlled form: the displayed label is whatever the live node says
+ * (preview merged by the parent). Typing pushes straight into the preview
+ * layer, so any other editor of the same field (e.g. the inline canvas
+ * label) stays in lock-step without a local mirror-state round-trip.
+ */
 export function NodeConfigForm({ node, onPreview, onConfirm }: NodeConfigFormProps) {
   const { t } = useTranslation();
   const isTextNode = node.type === "workflowText";
   const fieldKey = isTextNode ? "text" : "label";
-  const [label, setLabel] = useState(
-    String((node.data as Record<string, unknown>)?.[fieldKey] ?? ""),
-  );
+  const label = String((node.data as Record<string, unknown>)?.[fieldKey] ?? "");
 
-  useEffect(() => {
-    onPreview(node.id, { [fieldKey]: label });
-  }, [label, node.id, fieldKey, onPreview]);
+  const handleLabelChange = useCallback(
+    (v: string) => {
+      onPreview(node.id, { [fieldKey]: v });
+    },
+    [onPreview, node.id, fieldKey],
+  );
 
   const handleConfirm = useCallback(() => {
     onConfirm();
@@ -34,7 +41,7 @@ export function NodeConfigForm({ node, onPreview, onConfirm }: NodeConfigFormPro
     <>
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
         <ConfigField label={t("workflow.nodeLabel", "标签")}>
-          <ImeInput value={label} onValueChange={setLabel} className="h-8 text-xs" />
+          <ImeInput value={label} onValueChange={handleLabelChange} className="h-8 text-xs" />
         </ConfigField>
         <ConfigField label={t("workflow.position", "位置")}>
           <div className="flex gap-2">

@@ -2,7 +2,10 @@ import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { ViewNodeShape } from "../types";
 import type { BaseNodeProps } from "./types";
 import { cn } from "../utils/cn";
-import { renderNodeHandles } from "./renderNodeHandles";
+import { renderNodeHandles, renderNodeHandlesRow } from "./renderNodeHandles";
+import { NodeCollapseToggle, WorkflowNodeResizer } from "./nodeChrome";
+import { EditableNodeLabel } from "./EditableNodeLabel";
+import { useWorkflowNodeResize, useCollapsedGroupMemberRow } from "../hooks";
 
 /** Error popover shown when the error badge is clicked. */
 function ErrorPopover({ message, onClose }: { message: string; onClose: () => void }) {
@@ -51,37 +54,144 @@ const HEADER_ICON: Record<string, string> = {
   agent: "🤖",
 };
 
-export const BaseNode = memo(function BaseNode({ data, selected }: BaseNodeProps) {
+export const BaseNode = memo(function BaseNode({ id, data, selected, parentId }: BaseNodeProps) {
   const shape = data.shape ?? ViewNodeShape.SQUARE;
   const isCircle = shape === ViewNodeShape.CIRCLE;
+  const collapsed = Boolean(data.collapsed);
+  const { active: inCollapsedGroupRow } = useCollapsedGroupMemberRow(parentId);
   const nodeKind = (data as Record<string, unknown>).nodeKind as string | undefined;
   const kind = nodeKind && HEADER_GRADIENT[nodeKind] ? nodeKind : "default";
   const icon = nodeKind ? HEADER_ICON[nodeKind] : undefined;
   const runError = (data as Record<string, unknown>)._runError as string | undefined;
 
+  const shellRef = useRef<HTMLDivElement>(null);
   const [showError, setShowError] = useState(false);
+  const isTerminal = nodeKind === "start" || nodeKind === "end";
+  const labelFallback =
+    nodeKind === "start" ? "起始节点" : nodeKind === "end" ? "结束节点" : "基础节点";
+  const resize = useWorkflowNodeResize(shellRef, {
+    disabled: isTerminal || inCollapsedGroupRow,
+    terminal: isTerminal,
+    selected,
+    collapsed: collapsed || inCollapsedGroupRow,
+    variant: isCircle ? "circle" : "square",
+  });
   const toggleError = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     setShowError((v) => !v);
   }, []);
   const closeError = useCallback(() => setShowError(false), []);
 
+  if (inCollapsedGroupRow) {
+    return (
+      <div
+        ref={shellRef}
+        style={resize.shellStyle}
+        className="relative box-border min-h-0 h-full w-full min-w-0"
+        {...resize.shellPointerHandlers}
+      >
+        <WorkflowNodeResizer
+          disabled={isTerminal || inCollapsedGroupRow}
+          showHandles={resize.showHandles}
+          collapsed
+          variant="square"
+          onResizeStart={resize.resizerHandlers.onResizeStart}
+          onResizeEnd={resize.resizerHandlers.onResizeEnd}
+        />
+        <div
+          className={cn(
+            "relative table h-full max-h-full min-h-0 w-full min-w-0 table-fixed border-separate border-spacing-0 overflow-hidden rounded-lg border bg-background/95 backdrop-blur-sm transition-[border-color,box-shadow] duration-200",
+            selected
+              ? cn("ring-2", ACCENT_BORDER[kind], "border-transparent shadow-md")
+              : "border-border/60 shadow-sm",
+            runError && "!border-red-500 ring-2 ring-red-500/20",
+            data.className,
+          )}
+        >
+          <div className="table-row">
+            <div className="table-cell align-middle border-r border-border/30 p-0">
+              <div className="flex min-h-0 min-w-0 items-center gap-1 px-1.5 py-0.5">
+                <div className="relative h-full min-h-[28px] w-5 shrink-0">
+                  {renderNodeHandlesRow(data.inputs, "target")}
+                </div>
+                <div className="flex min-h-0 min-w-0 flex-1 items-center gap-1">
+                  {icon && <span className="shrink-0 text-[10px] leading-none opacity-90">{icon}</span>}
+                  <EditableNodeLabel
+                    nodeId={id}
+                    value={String(data.label ?? "")}
+                    dataField="label"
+                    fallback={labelFallback}
+                    tone="onCard"
+                    className="min-w-0 truncate text-[11px] font-semibold text-foreground"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="table-cell w-10 align-middle p-0">
+              <div className="relative h-full min-h-[28px] w-full">
+                {renderNodeHandlesRow(data.outputs, "source")}
+              </div>
+            </div>
+          </div>
+          {runError && (
+            <div className="absolute -right-1 -top-1 z-10">
+              <button
+                type="button"
+                onClick={toggleError}
+                className={cn(
+                  "flex h-4 w-4 items-center justify-center rounded-full",
+                  "bg-red-500 text-[9px] font-bold text-white shadow hover:bg-red-600",
+                )}
+                title="查看错误"
+              >
+                !
+              </button>
+              {showError && <ErrorPopover message={runError} onClose={closeError} />}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
-      className={cn(
-        "relative overflow-visible bg-background/80 backdrop-blur-md backdrop-saturate-150 transition-[border-color,box-shadow,transform] duration-200",
-        isCircle
-          ? "min-w-[140px] min-h-[140px] rounded-full aspect-square flex flex-col justify-center items-center"
-          : "inline-flex flex-col w-max min-w-[160px] max-w-[420px] rounded-xl",
-        selected
-          ? cn("ring-2", ACCENT_BORDER[kind], "border-transparent shadow-[0_10px_28px_rgba(0,0,0,0.12)]")
-          : "border border-border/70 shadow-[0_10px_26px_rgba(0,0,0,0.10)]",
-        !selected && "hover:shadow-[0_14px_34px_rgba(0,0,0,0.14)] hover:-translate-y-[1px]",
-        runError && "!border-red-500 ring-2 ring-red-500/20",
-        data.className,
-      )}
+      ref={shellRef}
+      style={resize.shellStyle}
+      className="relative box-border min-h-0 h-full w-full min-w-0"
+      {...resize.shellPointerHandlers}
     >
-      {renderNodeHandles(data.inputs, "target")}
+      <WorkflowNodeResizer
+        disabled={isTerminal}
+        showHandles={resize.showHandles}
+        collapsed={collapsed}
+        variant={isCircle ? "circle" : "square"}
+        onResizeStart={resize.resizerHandlers.onResizeStart}
+        onResizeEnd={resize.resizerHandlers.onResizeEnd}
+      />
+      <div
+        className={cn(
+          "relative bg-background/80 backdrop-blur-md backdrop-saturate-150 transition-[border-color,box-shadow] duration-200",
+          isCircle
+            ? "flex aspect-square min-h-0 w-full min-w-0 flex-col items-center justify-center rounded-full"
+            : "flex h-full min-h-0 w-full min-w-0 flex-col rounded-xl",
+          selected
+            ? cn("ring-2", ACCENT_BORDER[kind], "border-transparent shadow-[0_10px_28px_rgba(0,0,0,0.12)]")
+            : "border border-border/70 shadow-[0_10px_26px_rgba(0,0,0,0.10)]",
+          !selected && "hover:shadow-[0_14px_34px_rgba(0,0,0,0.14)]",
+          runError && "!border-red-500 ring-2 ring-red-500/20",
+          data.className,
+        )}
+      >
+        <NodeCollapseToggle
+          nodeId={id}
+          collapsed={collapsed}
+          className={isCircle ? "left-2 top-2" : "left-1.5 top-1.5"}
+          variant={isCircle ? "circle" : "square"}
+          terminal={isTerminal}
+          applyBounds={!inCollapsedGroupRow}
+        />
+        {renderNodeHandles(data.inputs, "target")}
 
       {/* Error badge */}
       {runError && (
@@ -106,28 +216,32 @@ export const BaseNode = memo(function BaseNode({ data, selected }: BaseNodeProps
       {/* Header */}
       <div
         className={cn(
-          "flex items-center gap-1.5 select-none bg-gradient-to-br text-white overflow-hidden",
-          isCircle ? "px-2.5 py-2 rounded-full" : "px-3.5 py-2 rounded-t-[12px]",
+          "flex w-full min-w-0 shrink-0 items-center gap-1.5 select-none bg-gradient-to-br text-white overflow-hidden py-2",
+          isCircle
+            ? "rounded-full px-2.5"
+            : cn("px-3.5 pl-9", collapsed ? "rounded-xl" : "rounded-t-[12px]"),
           HEADER_GRADIENT[kind],
           data.headerClassName,
         )}
       >
         {icon && <span className="text-xs leading-none">{icon}</span>}
-        <span
+        <EditableNodeLabel
+          nodeId={id}
+          value={String(data.label ?? "")}
+          dataField="label"
+          fallback={labelFallback}
           className={cn(
             "text-xs font-semibold tracking-wide flex-1 truncate",
             isCircle && "text-center",
           )}
-        >
-          {data.label}
-        </span>
+        />
       </div>
 
-      {/* Body: fixed vertical band; width follows content (clamped by node max-w) */}
-      {!isCircle && (
+      {/* Body (card mode only) */}
+      {!isCircle && !collapsed && (
         <div
           className={cn(
-            "px-3.5 py-2.5 text-[11px] text-muted-foreground/90 bg-muted/25 min-h-[50px] max-h-[150px] min-w-0 overflow-y-auto overflow-x-hidden break-words shrink-0",
+            "box-border w-full min-w-0 flex-1 min-h-[48px] px-3.5 py-2.5 text-[11px] text-muted-foreground/90 bg-muted/25 overflow-y-auto overflow-x-hidden break-words",
             data.contentClassName,
           )}
         >
@@ -136,11 +250,12 @@ export const BaseNode = memo(function BaseNode({ data, selected }: BaseNodeProps
       )}
 
       {/* Footer spacer */}
-      {!isCircle && (
-        <div className={cn("min-h-1.5", data.footerClassName)} />
+      {!isCircle && !collapsed && (
+        <div className={cn("min-h-1.5 shrink-0", data.footerClassName)} />
       )}
 
       {renderNodeHandles(data.outputs, "source")}
+      </div>
     </div>
   );
 });

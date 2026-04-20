@@ -41,6 +41,50 @@ function stripApiBaseFromPreviewUpdates(updates: Record<string, unknown>): Recor
   return rest;
 }
 
+function buildNodeById(nodes: Node[]): Map<string, Node> {
+  return new Map(nodes.map((n) => [n.id, n]));
+}
+
+/** Sum parent chain so child `position` becomes absolute flow coordinates. */
+function getAbsoluteFlowPosition(node: Node, byId: Map<string, Node>): { x: number; y: number } {
+  let x = node.position.x;
+  let y = node.position.y;
+  let pid = node.parentId;
+  while (pid) {
+    const p = byId.get(pid);
+    if (!p) break;
+    x += p.position.x;
+    y += p.position.y;
+    pid = p.parentId;
+  }
+  return { x, y };
+}
+
+function parseStylePx(v: unknown): number | undefined {
+  if (v == null) return undefined;
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string") {
+    const n = parseFloat(v);
+    return Number.isFinite(n) ? n : undefined;
+  }
+  return undefined;
+}
+
+function estimateNodeOuterSize(n: Node): { w: number; h: number } {
+  const style = (n.style ?? {}) as Record<string, unknown>;
+  const w =
+    (typeof n.width === "number" ? n.width : undefined) ??
+    n.measured?.width ??
+    parseStylePx(style.width) ??
+    (n.type === "group" ? 260 : n.type === "workflowText" ? 200 : 220);
+  const h =
+    (typeof n.height === "number" ? n.height : undefined) ??
+    n.measured?.height ??
+    parseStylePx(style.height) ??
+    (n.type === "group" ? 160 : 100);
+  return { w, h };
+}
+
 /** Structural / destructive RF updates that must get their own history entry. */
 function nodeChangesNeedHistory(changes: NodeChange[]): boolean {
   return changes.some((c) => {
@@ -54,6 +98,22 @@ function nodeChangesNeedHistory(changes: NodeChange[]): boolean {
 
 function edgeChangesNeedHistory(changes: EdgeChange[]): boolean {
   return changes.some((c) => c.type === "remove" || c.type === "add" || c.type === "replace");
+}
+
+/** Controlled RF emits `replace` when store diff sees a new node object (e.g. `updateNodeData`). */
+function collectReplaceNodeIdsFromNodeChanges(changes: NodeChange[]): Set<string> {
+  const ids = new Set<string>();
+  for (const ch of changes) {
+    if (ch.type === "replace" && "id" in ch && typeof (ch as { id?: unknown }).id === "string") {
+      ids.add((ch as { id: string }).id);
+    }
+  }
+  return ids;
+}
+
+/** Stable snapshot for deduping back-to-back identical graphs (e.g. RF `replace` + ResizeObserver no-op). */
+function workflowGraphSignature(nodes: Node[], edges: Edge[]): string {
+  return JSON.stringify({ nodes, edges });
 }
 
 export interface UseWorkflowOptions {
@@ -90,10 +150,15 @@ export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
   edgesRef.current = edges;
 
   const historySeededForWorkflow = useRef<string | null>(null);
+  const lastRecordedHistorySigRef = useRef<string | null>(null);
 
   // ── Selection ──
-  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
-  const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null);
+  // We only track the selected *id*; the live node object is derived from
+  // `displayNodes` below so it always reflects the latest graph + preview
+  // state (including inline canvas edits via `updateNodeData`) without any
+  // extra sync effects.
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
 
   // ── Preview layer (not persisted until commit) ──
   const [nodePreview, setNodePreview] = useState<{
@@ -133,6 +198,19 @@ export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
     });
   }, [edges, edgePreview]);
 
+  // Live selection objects derived from the currently rendered graph so any
+  // update (inline canvas label edit, drawer preview, history jump, …)
+  // immediately shows up wherever `selectedNode` / `selectedEdge` is read.
+  const selectedNode = useMemo<Node | null>(() => {
+    if (!selectedNodeId) return null;
+    return displayNodes.find((n) => n.id === selectedNodeId) ?? null;
+  }, [displayNodes, selectedNodeId]);
+
+  const selectedEdge = useMemo<Edge | null>(() => {
+    if (!selectedEdgeId) return null;
+    return displayEdges.find((e) => e.id === selectedEdgeId) ?? null;
+  }, [displayEdges, selectedEdgeId]);
+
   // ── Running & data flow ──
   const { runStatus, runError, currentRun, nodeRunStates, run, cancelRun, resetRunStates } =
     useWorkflowRun({ workflowId });
@@ -140,8 +218,28 @@ export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
   // ── History ──
   const history = useHistory();
 
+  const recordGraphSnapshot = useCallback(
+    (nextNodes: Node[], nextEdges: Edge[], meta?: HistoryEntryMeta) => {
+      const sig = workflowGraphSignature(nextNodes, nextEdges);
+      if (lastRecordedHistorySigRef.current !== null && sig === lastRecordedHistorySigRef.current) {
+        return;
+      }
+      lastRecordedHistorySigRef.current = sig;
+      history.push(nextNodes, nextEdges, meta);
+    },
+    [history],
+  );
+
+  const pushHistory = useCallback(
+    (meta?: HistoryEntryMeta) => {
+      recordGraphSnapshot(nodesRef.current, edgesRef.current, meta);
+    },
+    [recordGraphSnapshot],
+  );
+
   useEffect(() => {
     historySeededForWorkflow.current = null;
+    lastRecordedHistorySigRef.current = null;
   }, [workflowId]);
 
   // Baseline snapshot so first edit has index 1 (useHistory undo requires currentIndex > 0).
@@ -150,10 +248,11 @@ export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
     if (historySeededForWorkflow.current === workflowId) return;
     historySeededForWorkflow.current = workflowId;
     history.reset();
-    history.push(nodesRef.current, edgesRef.current, {
+    lastRecordedHistorySigRef.current = null;
+    recordGraphSnapshot(nodesRef.current, edgesRef.current, {
       operation: { kind: "seed", payload: { workflowId } },
     });
-  }, [workflowId, loading, nodes, edges, history]);
+  }, [workflowId, loading, nodes, edges, history, recordGraphSnapshot]);
 
   // ── Load workflow + latest version ──
   useEffect(() => {
@@ -187,32 +286,38 @@ export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
   // ── Mark dirty on any node/edge change ──
   const markDirty = useCallback(() => setDirty(true), []);
 
-  const pushHistory = useCallback(
-    (meta?: HistoryEntryMeta) => {
-      history.push(nodesRef.current, edgesRef.current, meta);
-    },
-    [history],
-  );
-
-  const recordGraphSnapshot = useCallback(
-    (nextNodes: Node[], nextEdges: Edge[], meta?: HistoryEntryMeta) => {
-      history.push(nextNodes, nextEdges, meta);
-    },
-    [history],
-  );
-
   // ── ReactFlow handlers ──
   const onNodesChange: OnNodesChange = useCallback(
     (changes) => {
       const record = nodeChangesNeedHistory(changes);
+      const replaceIds = collectReplaceNodeIdsFromNodeChanges(changes);
+      const removedIds = new Set(
+        changes.filter((c) => c.type === "remove").map((c) => (c as { id: string }).id),
+      );
+
+      // A `replace` means the underlying node object was swapped
+      // (e.g. `updateNodeData` from an inline canvas label edit). The fresh
+      // value now lives in `nodes`, so drop any stale preview for it in the
+      // SAME render as `setNodes` — otherwise there is a window where
+      // `displayNodes` still merges the outdated preview on top of the new
+      // base data, making the drawer appear to ignore the canvas edit.
+      if (replaceIds.size > 0 || removedIds.size > 0) {
+        setNodePreview((pv) => {
+          if (!pv) return pv;
+          if (replaceIds.has(pv.id)) return null;
+          if (removedIds.has(pv.id)) return null;
+          return pv;
+        });
+      }
+
       setNodes((nds) => {
         const next = applyNodeChanges(changes, nds);
         if (record) {
-          queueMicrotask(() =>
+          queueMicrotask(() => {
             recordGraphSnapshot(next, edgesRef.current, {
               operation: { kind: "reactFlowNodesChange", payload: { changes } },
-            }),
-          );
+            });
+          });
         }
         return next;
       });
@@ -254,22 +359,30 @@ export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
 
   // ── Selection ──
   const selectNode = useCallback((_: React.MouseEvent, node: Node) => {
-    setSelectedEdge(null);
-    setSelectedNode(node);
+    setSelectedEdgeId(null);
+    setSelectedNodeId(node.id);
     setEdgePreview(null);
     setNodePreview(null);
   }, []);
 
   const selectEdge = useCallback((_: React.MouseEvent, edge: Edge) => {
-    setSelectedNode(null);
-    setSelectedEdge(edge);
+    setSelectedNodeId(null);
+    setSelectedEdgeId(edge.id);
     setNodePreview(null);
     setEdgePreview(null);
   }, []);
 
   const clearSelection = useCallback(() => {
-    setSelectedNode(null);
-    setSelectedEdge(null);
+    setSelectedNodeId(null);
+    setSelectedEdgeId(null);
+  }, []);
+
+  /** Clear config drawer target while keeping React Flow node selection (e.g. Shift multi-select). */
+  const blurDrawerSelection = useCallback(() => {
+    setSelectedNodeId(null);
+    setSelectedEdgeId(null);
+    setNodePreview(null);
+    setEdgePreview(null);
   }, []);
 
   // ── Preview / Commit / Revert ──
@@ -306,14 +419,6 @@ export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
           : n,
       );
       setNodes(nextNodes);
-      setSelectedNode((prev) =>
-        prev?.id === np.id
-          ? {
-              ...prev,
-              data: mergeNodeData((prev.data ?? {}) as Record<string, unknown>, np.updates),
-            }
-          : prev,
-      );
       setNodePreview(null);
     }
 
@@ -331,18 +436,6 @@ export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
         };
       });
       setEdges(nextEdges);
-      setSelectedEdge((prev) => {
-        if (prev?.id !== ep.id) return prev;
-        const { data: previewData, ...topLevel } = ep.updates as {
-          data?: Record<string, unknown>;
-          [k: string]: unknown;
-        };
-        return {
-          ...prev,
-          ...topLevel,
-          ...(previewData ? { data: { ...(prev.data ?? {}), ...previewData } } : {}),
-        } as Edge;
-      });
       setEdgePreview(null);
     }
 
@@ -383,14 +476,6 @@ export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
           : n,
       );
       setNodes(nextNodes);
-      setSelectedNode((prev) =>
-        prev?.id === nodeId
-          ? {
-              ...prev,
-              data: mergeNodeData((prev.data ?? {}) as Record<string, unknown>, updates),
-            }
-          : prev,
-      );
       recordGraphSnapshot(nextNodes, edgesRef.current, {
         operation: { kind: "updateNode", payload: { nodeId, updates } },
       });
@@ -405,7 +490,6 @@ export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
         e.id === edgeId ? ({ ...e, ...updates } as Edge) : e,
       );
       setEdges(nextEdges);
-      setSelectedEdge((prev) => (prev?.id === edgeId ? ({ ...prev, ...updates } as Edge) : prev));
       recordGraphSnapshot(nodesRef.current, nextEdges, {
         operation: { kind: "updateEdge", payload: { edgeId, updates } },
       });
@@ -428,15 +512,13 @@ export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
   );
 
   const syncSelectionAfterHistoryJump = useCallback((nextNodes: Node[], nextEdges: Edge[]) => {
-    setSelectedNode((prev) => {
+    setSelectedNodeId((prev) => {
       if (!prev) return null;
-      const n = nextNodes.find((x) => x.id === prev.id);
-      return n ?? null;
+      return nextNodes.some((x) => x.id === prev) ? prev : null;
     });
-    setSelectedEdge((prev) => {
+    setSelectedEdgeId((prev) => {
       if (!prev) return null;
-      const e = nextEdges.find((x) => x.id === prev.id);
-      return (e as Edge | undefined) ?? null;
+      return nextEdges.some((x) => x.id === prev) ? prev : null;
     });
   }, []);
 
@@ -448,6 +530,10 @@ export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
       setEdgePreview(null);
       setNodes(entry.nodes as Node[]);
       setEdges(entry.edges as Edge[]);
+      lastRecordedHistorySigRef.current = workflowGraphSignature(
+        entry.nodes as Node[],
+        entry.edges as Edge[],
+      );
       syncSelectionAfterHistoryJump(entry.nodes as Node[], entry.edges as Edge[]);
       markDirty();
     }
@@ -460,6 +546,10 @@ export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
       setEdgePreview(null);
       setNodes(entry.nodes as Node[]);
       setEdges(entry.edges as Edge[]);
+      lastRecordedHistorySigRef.current = workflowGraphSignature(
+        entry.nodes as Node[],
+        entry.edges as Edge[],
+      );
       syncSelectionAfterHistoryJump(entry.nodes as Node[], entry.edges as Edge[]);
       markDirty();
     }
@@ -495,7 +585,7 @@ export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
       const nextEdges = edgesRef.current.filter((e) => e.source !== nodeId && e.target !== nodeId);
       setNodes(nextNodes);
       setEdges(nextEdges);
-      setSelectedNode((prev) => (prev?.id === nodeId ? null : prev));
+      setSelectedNodeId((prev) => (prev === nodeId ? null : prev));
       recordGraphSnapshot(nextNodes, nextEdges, {
         operation: { kind: "deleteNode", payload: { nodeId } },
       });
@@ -508,7 +598,7 @@ export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
     (edgeId: string) => {
       const nextEdges = edgesRef.current.filter((e) => e.id !== edgeId);
       setEdges(nextEdges);
-      setSelectedEdge((prev) => (prev?.id === edgeId ? null : prev));
+      setSelectedEdgeId((prev) => (prev === edgeId ? null : prev));
       recordGraphSnapshot(nodesRef.current, nextEdges, {
         operation: { kind: "deleteEdge", payload: { edgeId } },
       });
@@ -577,8 +667,8 @@ export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
   const clearCanvas = useCallback(() => {
     setNodes([]);
     setEdges([]);
-    setSelectedNode(null);
-    setSelectedEdge(null);
+    setSelectedNodeId(null);
+    setSelectedEdgeId(null);
     recordGraphSnapshot([], [], { operation: { kind: "clearCanvas" } });
     markDirty();
   }, [recordGraphSnapshot, markDirty]);
@@ -651,85 +741,55 @@ export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
   const mergeToGroup = useCallback(
     (nodeIds: string[]) => {
       if (nodeIds.length < 2) return;
-      setNodes((nds) => {
-        const selected = nds.filter((n) => nodeIds.includes(n.id));
-        if (selected.length === 0) return nds;
+      const nds = nodesRef.current;
+      const byId = buildNodeById(nds);
+      const selected = nds.filter((n) => nodeIds.includes(n.id) && n.type !== "group");
+      if (selected.length < 2) return;
 
-        const xs = selected.map((n) => n.position.x);
-        const ys = selected.map((n) => n.position.y);
-        const padding = 40;
-        const minX = Math.min(...xs) - padding;
-        const minY = Math.min(...ys) - padding;
-        const maxX = Math.max(...xs) + 200 + padding;
-        const maxY = Math.max(...ys) + 100 + padding;
+      const padding = 40;
+      let minAX = Infinity;
+      let minAY = Infinity;
+      let maxAX = -Infinity;
+      let maxAY = -Infinity;
+      for (const n of selected) {
+        const abs = getAbsoluteFlowPosition(n, byId);
+        const { w, h } = estimateNodeOuterSize(n);
+        minAX = Math.min(minAX, abs.x);
+        minAY = Math.min(minAY, abs.y);
+        maxAX = Math.max(maxAX, abs.x + w);
+        maxAY = Math.max(maxAY, abs.y + h);
+      }
+      const groupX = minAX - padding;
+      const groupY = minAY - padding;
+      const groupW = maxAX - minAX + padding * 2;
+      const groupH = maxAY - minAY + padding * 2;
 
-        const groupId = generateId("grp");
-        const groupNode: Node = {
-          id: groupId,
-          type: "group",
-          position: { x: minX, y: minY },
-          style: { width: maxX - minX, height: maxY - minY },
-          data: { label: "Group" },
+      const groupId = generateId("grp");
+      const groupNode: Node = {
+        id: groupId,
+        type: "group",
+        position: { x: groupX, y: groupY },
+        style: { width: groupW, height: groupH },
+        data: { label: "Group" },
+      };
+
+      const selectedIds = new Set(selected.map((n) => n.id));
+      const mergedIds = selected.map((n) => n.id);
+      const updated = nds.map((n) => {
+        if (!selectedIds.has(n.id)) return n;
+        const abs = getAbsoluteFlowPosition(n, byId);
+        return {
+          ...n,
+          position: { x: abs.x - groupX, y: abs.y - groupY },
+          parentId: groupId,
+          extent: "parent" as const,
         };
-
-        const updated = nds.map((n) => {
-          if (!nodeIds.includes(n.id)) return n;
-          return {
-            ...n,
-            position: { x: n.position.x - minX, y: n.position.y - minY },
-            parentId: groupId,
-            extent: "parent" as const,
-          };
-        });
-
-        return [groupNode, ...updated];
       });
+
+      const next = [groupNode, ...updated];
+      setNodes(next);
       requestAnimationFrame(() =>
-        pushHistory({ operation: { kind: "mergeToGroup", payload: { nodeIds } } }),
-      );
-      markDirty();
-    },
-    [pushHistory, markDirty],
-  );
-
-  const addLabelGroup = useCallback(
-    (nodeIds: string[]) => {
-      if (nodeIds.length === 0) return;
-      setNodes((nds) => {
-        const selected = nds.filter((n) => nodeIds.includes(n.id));
-        if (selected.length === 0) return nds;
-
-        const xs = selected.map((n) => n.position.x);
-        const ys = selected.map((n) => n.position.y);
-        const padding = 40;
-        const minX = Math.min(...xs) - padding;
-        const minY = Math.min(...ys) - padding;
-        const maxX = Math.max(...xs) + 200 + padding;
-        const maxY = Math.max(...ys) + 100 + padding;
-
-        const groupId = generateId("lbl");
-        const groupNode: Node = {
-          id: groupId,
-          type: "group",
-          position: { x: minX, y: minY },
-          style: { width: maxX - minX, height: maxY - minY },
-          data: { label: "Label" },
-        };
-
-        const updated = nds.map((n) => {
-          if (!nodeIds.includes(n.id)) return n;
-          return {
-            ...n,
-            position: { x: n.position.x - minX, y: n.position.y - minY },
-            parentId: groupId,
-            extent: "parent" as const,
-          };
-        });
-
-        return [groupNode, ...updated];
-      });
-      requestAnimationFrame(() =>
-        pushHistory({ operation: { kind: "addLabelGroup", payload: { nodeIds } } }),
+        pushHistory({ operation: { kind: "mergeToGroup", payload: { nodeIds: mergedIds } } }),
       );
       markDirty();
     },
@@ -776,6 +836,7 @@ export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
     selectNode,
     selectEdge,
     clearSelection,
+    blurDrawerSelection,
 
     onNodesChange,
     onEdgesChange,
@@ -817,7 +878,6 @@ export function useWorkflow({ workflowId }: UseWorkflowOptions = {}) {
     selectAll,
     applyLayout,
     mergeToGroup,
-    addLabelGroup,
     deleteGroup,
   };
 }

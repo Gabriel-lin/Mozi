@@ -1,0 +1,57 @@
+---
+description: Split big components into folders + barrel; pure helpers in utils/
+globs: "src/**/*.{ts,tsx}"
+alwaysApply: false
+---
+
+# Code Organization
+
+## Split large components
+
+File >150 LOC or ≥2 internal subcomponents → promote to a folder with a
+barrel. Import paths stay the same.
+
+```
+ConfigDrawer/
+├── index.ts          # re-exports public API (component + props types)
+├── ConfigDrawer.tsx  # shell
+├── ConfigTabPanel.tsx
+└── RunDetailPanel.tsx
+```
+
+File-private subcomponents (e.g. `StatusRow`) stay inside the parent file —
+don't export unless reused elsewhere.
+
+## Extract pure helpers to `utils/`
+
+Pure functions (formatters, parsers, predicates, math) must NOT sit at the
+bottom of a component file.
+
+- Feature-scoped → `src/pages/<feature>/utils/<topic>.ts`
+- App-wide      → `src/lib/utils.ts`
+
+Each `utils/` folder has an `index.ts` barrel. One file per topic
+(`format.ts`, `graph.ts`, `validation.ts`). Helpers must be pure (no React,
+no state, no JSX) — anything with a hook/ref/JSX is a component or belongs
+under `hooks/`.
+
+## Example
+
+```tsx
+// ❌ pure helper at bottom of component file
+export function RunDetailPanel() { /* ... */ }
+function formatTime(ts: number) { /* ... */ }
+
+// ✅ helper in utils, component imports it
+// pages/workflow/utils/format.ts
+export function formatTime(ts: number) { /* ... */ }
+// pages/workflow/components/ConfigDrawer/RunDetailPanel.tsx
+import { formatTime } from "../../utils";
+```
+
+## Checklist
+
+- Component file ≤ ~250 LOC
+- No pure helpers below JSX
+- Every multi-file folder has `index.ts`
+- Cross-feature helpers live in `src/lib/`

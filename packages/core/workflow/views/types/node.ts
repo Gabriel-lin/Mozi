@@ -6,6 +6,8 @@ import { type HandleConfig, type ViewNodeShape, viewNodeShapeSchema, handleConfi
 /** Data payload for the general-purpose workflow node. */
 export type WorkflowViewNodeData = {
   label: string;
+  /** When true, only the header bar is shown (thumbnail mode). */
+  collapsed?: boolean;
   shape?: ViewNodeShape;
   inputs: HandleConfig[];
   outputs: HandleConfig[];
@@ -19,6 +21,7 @@ export type WorkflowViewNodeData = {
 
 export const workflowViewNodeDataSchema = z.object({
   label: z.string(),
+  collapsed: z.boolean().optional(),
   shape: viewNodeShapeSchema.optional(),
   inputs: z.array(handleConfigSchema).min(1),
   outputs: z.array(handleConfigSchema).min(1),
@@ -31,6 +34,7 @@ export const workflowViewNodeDataSchema = z.object({
 /** Data payload for pure-text nodes. */
 export type TextNodeData = {
   text: string;
+  collapsed?: boolean;
   shape?: ViewNodeShape;
   inputs: HandleConfig[];
   outputs: HandleConfig[];
@@ -42,6 +46,7 @@ export type TextNodeData = {
 
 export const textNodeDataSchema = z.object({
   text: z.string(),
+  collapsed: z.boolean().optional(),
   shape: viewNodeShapeSchema.optional(),
   inputs: z.array(handleConfigSchema).min(1),
   outputs: z.array(handleConfigSchema).min(1),

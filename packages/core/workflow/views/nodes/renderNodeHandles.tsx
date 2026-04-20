@@ -18,6 +18,34 @@ function resolvePosition(pos: string | undefined, fallback: Position): Position 
  * Renders workflow node handles. Default layout: inputs top-left, outputs bottom-right.
  * If a handle has `position` set in config, it uses that edge with even spacing.
  */
+
+/** Handles along the left (targets) or right (sources) edge for compact group table rows. */
+export function renderNodeHandlesRow(handles: HandleConfig[], type: "source" | "target") {
+  const count = handles.length;
+  const position = type === "target" ? Position.Left : Position.Right;
+
+  return handles.map((h, i) => {
+    const offsetPct = count === 1 ? 50 : 14 + (i / Math.max(count - 1, 1)) * 72;
+    const style: React.CSSProperties =
+      position === Position.Left || position === Position.Right ? { top: `${offsetPct}%` } : {};
+
+    return (
+      <Handle
+        key={h.id}
+        id={h.id}
+        type={type}
+        position={position}
+        className={cn(
+          "!w-2 !h-2 !border-2 !border-white",
+          type === "target" ? "!bg-indigo-400" : "!bg-green-500",
+        )}
+        style={style}
+        title={h.label}
+      />
+    );
+  });
+}
+
 export function renderNodeHandles(handles: HandleConfig[], type: "source" | "target") {
   const count = handles.length;
   const defaultEdge = type === "target" ? Position.Top : Position.Bottom;

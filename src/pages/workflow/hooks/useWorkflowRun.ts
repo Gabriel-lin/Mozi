@@ -1,6 +1,31 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { workflowApi, type RunOut, type RunEvent } from "@/services/workflow";
+import { ApiError } from "@/services/api";
 import { extractErrorMessage } from "@/lib/utils";
+
+// Pull a readable message out of whatever `workflowApi.run` may reject with.
+// Backend validation errors come back as
+//   { detail: { detail: "工作流验证失败", errors: ["..."] } }
+// while other errors are plain strings.
+function extractSubmitError(err: unknown): string {
+  if (err instanceof ApiError) {
+    const data = err.data as { detail?: unknown; message?: string } | undefined;
+    const detail = data?.detail;
+    if (detail && typeof detail === "object") {
+      const d = detail as { detail?: string; errors?: unknown };
+      const lines = Array.isArray(d.errors)
+        ? d.errors.filter((s): s is string => typeof s === "string")
+        : [];
+      if (lines.length) return lines.join("；");
+      if (typeof d.detail === "string") return d.detail;
+    }
+    if (typeof detail === "string") return detail;
+    if (typeof data?.message === "string") return data.message;
+    return err.message || `请求失败（HTTP ${err.status}）`;
+  }
+  if (err instanceof Error) return err.message;
+  return "启动工作流失败";
+}
 
 // ── Types ──
 
@@ -200,10 +225,11 @@ export function useWorkflowRun({ workflowId }: UseWorkflowRunOptions = {}): UseW
           wsRef.current = null;
         }
       };
-    } catch {
+    } catch (err) {
       runningRef.current = false;
       stopPoll();
       setRunStatus("failed");
+      setRunError(extractSubmitError(err));
     }
   }, [workflowId, closeWs, stopPoll, startPoll]);
 

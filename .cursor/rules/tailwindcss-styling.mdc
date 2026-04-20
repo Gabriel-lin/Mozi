@@ -1,40 +1,29 @@
 ---
-description: Use Tailwind CSS for all styling — no inline style objects
+description: Style with Tailwind classes only — no inline styles, no CSS-in-JS
 globs: "**/*.{tsx,jsx}"
 alwaysApply: false
 ---
 
-# Tailwind CSS Styling Rule
+# Tailwind Styling
 
-All visual styling MUST use Tailwind CSS utility classes via the `className` prop.
+All styling via `className` + Tailwind utilities. Merge conditionals with
+`cn()` from `@/lib/utils`. Use theme vars (`text-foreground`, `bg-muted`,
+`border-border`) and arbitrary values (`w-[180px]`) for dynamic sizes.
 
 ## Prohibited
 
-- `style={{ ... }}` inline style objects
-- CSS-in-JS (emotion, styled-components, etc.)
-- Separate `.css` / `.scss` module files for component-level styles (global `index.css` is fine)
-
-## Required
-
-- Use Tailwind utility classes: `className="flex items-center gap-2 p-3 rounded-lg"`
-- Use `cn()` from `@/lib/utils` to merge conditional classes
-- Dynamic values → Tailwind arbitrary values: `className="w-[180px] min-h-[140px]"`
-- Theme colors → CSS variable classes: `text-foreground`, `bg-muted`, `border-border`
+- `style={{ ... }}` inline objects
+- CSS-in-JS (emotion, styled-components, …)
+- Component-level `.css` / `.scss` files (global `index.css` is fine)
 
 ## Examples
 
 ```tsx
-// ❌ BAD
-<div style={{ padding: 8, background: '#fff', borderRadius: 8 }}>
+// ❌
+<div style={{ padding: 8, background: '#fff' }}>
+<span style={{ color: selected ? '#6366f1' : '#e2e8f0' }}>
 
-// ✅ GOOD
-<div className="p-2 bg-background rounded-lg">
-```
-
-```tsx
-// ❌ BAD
-<span style={{ fontSize: 12, color: selected ? '#6366f1' : '#e2e8f0' }}>
-
-// ✅ GOOD
+// ✅
+<div className="p-2 bg-background">
 <span className={cn("text-xs", selected ? "text-indigo-400" : "text-border")}>
 ```

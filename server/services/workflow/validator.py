@@ -33,21 +33,48 @@ def _get_node_kind(node: dict) -> str:
     return node.get("type", "workflowBase")
 
 
+def is_executable_node(node: dict) -> bool:
+    """Return whether this node participates in runtime execution.
+
+    React Flow `type: "group"` nodes are pure visual containers used to group
+    other nodes spatially via `parentId` / `extent: "parent"`. They have no
+    handles, no edges and no runtime behavior, so they must be excluded from
+    validation and from the compiled execution graph.
+
+    An explicit `data.nodeKind` still takes precedence — a node could in
+    theory be visually rendered as a group while semantically executable
+    (e.g. a future workflow-as-agent encapsulation), in which case
+    `data.nodeKind` would override the visual-only classification.
+    """
+    data = node.get("data") or {}
+    if data.get("nodeKind") in ("start", "end", "llm", "agent"):
+        return True
+    return node.get("type") != "group"
+
+
 def validate_workflow(graph_data: dict) -> ValidationResult:
     """Validate a workflow graph_data dict before execution.
 
-    Checks performed:
+    Checks performed (on executable nodes only — visual-only group
+    containers are ignored):
     1. Structural — exactly 1 start node, >=1 end node
     2. Edge integrity — no dangling source/target references
-    3. Connectivity — all nodes reachable from start via BFS
+    3. Connectivity — all executable nodes reachable from start via BFS
     4. Configuration — LLM nodes have provider+model, agent nodes reference valid LLM
     """
     result = ValidationResult()
-    nodes: list[dict] = graph_data.get("nodes") or []
+    all_nodes: list[dict] = graph_data.get("nodes") or []
     edges: list[dict] = graph_data.get("edges") or []
 
-    if not nodes:
+    if not all_nodes:
         result.add_error("工作流不包含任何节点")
+        return result
+
+    # Filter out visual-only containers (React Flow group nodes).
+    nodes: list[dict] = [n for n in all_nodes if is_executable_node(n)]
+
+    if not nodes:
+        result.add_error("工作流不包含任何可执行节点")
         return result
 
     # ── Build lookup maps ──
@@ -71,15 +98,21 @@ def validate_workflow(graph_data: dict) -> ValidationResult:
         result.add_error("缺少结束节点")
 
     # ── 2. Edge integrity ──
+    # Visual-only (group) nodes are excluded from node_map, so edges that
+    # reference them are silently skipped rather than reported as dangling.
+    all_ids = {n.get("id", "") for n in all_nodes}
     adj: dict[str, list[str]] = {nid: [] for nid in node_map}
     for edge in edges:
         src = edge.get("source", "")
         tgt = edge.get("target", "")
-        if src not in node_map:
+        if src not in all_ids:
             result.add_error(f"边 {edge.get('id','?')} 的起始节点 {src} 不存在")
             continue
-        if tgt not in node_map:
+        if tgt not in all_ids:
             result.add_error(f"边 {edge.get('id','?')} 的目标节点 {tgt} 不存在")
+            continue
+        if src not in node_map or tgt not in node_map:
+            # edge touches a visual-only node — ignore for execution purposes
             continue
         adj[src].append(tgt)
 
@@ -104,6 +137,11 @@ def validate_workflow(graph_data: dict) -> ValidationResult:
             result.add_error(f"以下节点从开始节点不可达: {', '.join(str(l) for l in labels)}")
 
     # ── 4. Node configuration checks ──
+    # NOTE: runtime-only checks (e.g. API Key presence, model reachability)
+    # are intentionally deferred to execution so that the workflow run
+    # actually starts and the specific node can be attributed the failure
+    # via ``node_error`` events. Only static-structural problems are
+    # reported here.
     llm_ids = set()
     for nid, kind in kind_map.items():
         data = (node_map[nid].get("data") or {})
