@@ -14,6 +14,7 @@ export {
   FactoryTemplatePage,
   FactoryToolkitPage,
   FactoryToolPage,
+  FactoryMcpPage,
 } from "./factory";
 export { WorkflowCreatePage, WorkflowEditPage, WorkflowRunPage } from "./workflow";
 export { SwarmCreatePage, SwarmEditPage, SwarmRunPage, SwarmStatsPage } from "./swarm";

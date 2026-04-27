@@ -45,13 +45,34 @@ def build_agent_executor(
     )
 
 
+async def resolve_workspace_tools(workspace_id: str) -> list:
+    """Query installed toolkits for a workspace and return LangChain tools."""
+    from shared.database import async_session_factory
+    from services.workspace.service import resolve_installed_toolkits
+    from .builtin_tools import resolve_builtin_tools
+    from .mcp_tools import resolve_mcp_tools
+
+    async with async_session_factory() as db:
+        installed = await resolve_installed_toolkits(db, workspace_id)
+
+    tools = resolve_builtin_tools(installed)
+    tools.extend(resolve_mcp_tools(installed))
+    log.info("resolved_workspace_tools", workspace_id=workspace_id, count=len(tools),
+             names=[t.name for t in tools])
+    return tools
+
+
 async def run_agent(
     system_prompt: str,
     goal: str,
     tools: list | None = None,
     model: str | None = None,
     max_steps: int = 10,
+    workspace_id: str | None = None,
 ) -> dict:
+    if workspace_id and not tools:
+        tools = await resolve_workspace_tools(workspace_id)
+
     executor = build_agent_executor(system_prompt, tools, model, max_steps)
     result = await executor.ainvoke({"input": goal})
     steps = []

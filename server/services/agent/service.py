@@ -10,7 +10,12 @@ celery_app = Celery("mozi", broker=settings.redis_url)
 
 
 async def create_agent(db: AsyncSession, created_by: str, data: dict) -> Agent:
-    agent = Agent(created_by=created_by, **data)
+    payload = {**data}
+    if payload.get("config") is None:
+        payload["config"] = {}
+    if payload.get("tags") is None:
+        payload["tags"] = []
+    agent = Agent(created_by=created_by, **payload)
     db.add(agent)
     await db.commit()
     await db.refresh(agent)

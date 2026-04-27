@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from shared.schemas.skills import AgentSkillCatalogOut
+
 
 class AgentCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
@@ -39,6 +41,12 @@ class AgentOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class AgentDetailOut(AgentOut):
+    """`GET /agents/{id}` only — includes discoverable skills for the editor UI."""
+
+    skill_catalog: AgentSkillCatalogOut
 
 
 class AgentListOut(BaseModel):

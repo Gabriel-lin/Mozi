@@ -27,7 +27,12 @@ export function SubPageLayout({
   const navigate = useNavigate();
 
   return (
-    <div className={cn("max-w-5xl mx-auto p-6 md:p-8 space-y-6 animate-fade-in", className)}>
+    <div
+      className={cn(
+        "mx-auto w-full min-w-0 max-w-5xl space-y-6 p-6 md:p-8 animate-fade-in",
+        className,
+      )}
+    >
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
           <button
@@ -48,7 +53,9 @@ export function SubPageLayout({
               {t(titleKey)}
             </h1>
             {descriptionKey && (
-              <p className="text-sm text-muted-foreground truncate">{t(descriptionKey)}</p>
+              <p className="min-w-0 max-w-full break-words text-sm text-muted-foreground line-clamp-2">
+                {t(descriptionKey)}
+              </p>
             )}
           </div>
         </div>

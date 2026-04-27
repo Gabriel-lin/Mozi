@@ -35,9 +35,15 @@ class Settings(BaseSettings):
     minio_secret_key: str = "minioadmin"
     minio_secure: bool = False
 
+    # Local skills directories (~/.Mozi/skills, ~/.agents/skills) use this home.
+    # In Docker, set to the host user home if the agent service should see the same tree.
+    user_home: str | None = None
+
     # MCP
     mcp_server_name: str = "mozi"
     mcp_server_version: str = "0.1.0"
+    mcp_streamable_path: str = "/api/v1/mcp"
+    mcp_proxy_http_timeout_seconds: int = 30
 
     model_config = {"env_prefix": "MOZI_", "env_file": ".env", "extra": "ignore"}
 

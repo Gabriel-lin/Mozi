@@ -56,6 +56,7 @@ async def _execute(run_id: str, agent_id: str, goal: str):
                 goal=goal,
                 model=agent.model,
                 max_steps=agent.max_steps,
+                workspace_id=agent.workspace_id,
             )
             run.status = "completed"
             run.output = {"answer": result["output"]}
