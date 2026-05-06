@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { FolderUp, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
@@ -186,9 +186,6 @@ export function AgentSkillConfigBlock({
             )}
           </div>
         </div>
-        <CardDescription className="text-xs leading-relaxed">
-          {t("agent.skillsRemoteHint")}
-        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-0 p-0">
         <div className="space-y-3 border-b border-border/50 px-4 py-4 sm:px-5">

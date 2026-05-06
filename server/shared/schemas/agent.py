@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -56,8 +57,28 @@ class AgentListOut(BaseModel):
     page_size: int
 
 
+class RunAttachmentIn(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    mime_type: str | None = Field(None, max_length=120)
+    text: str | None = Field(None, max_length=120_000)
+
+
 class RunCreate(BaseModel):
-    goal: str = Field(min_length=1, max_length=5000)
+    goal: str = Field(min_length=1, max_length=8000)
+    attachments: list[RunAttachmentIn] | None = Field(None, max_length=12)
+    model: str | None = Field(
+        None,
+        max_length=100,
+        description="If set, overrides Agent.model for this run only (OpenAI model id or vLLM served name).",
+    )
+
+
+class RunPinBody(BaseModel):
+    pinned: bool
+
+
+class RunFeedbackBody(BaseModel):
+    feedback: Literal["positive", "negative"] | None = None
 
 
 class RunOut(BaseModel):
@@ -73,6 +94,8 @@ class RunOut(BaseModel):
     started_at: datetime | None = None
     completed_at: datetime | None = None
     created_at: datetime
+    pinned_at: datetime | None = None
+    feedback: str | None = None
 
     model_config = {"from_attributes": True}
 

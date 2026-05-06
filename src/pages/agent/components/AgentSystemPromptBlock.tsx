@@ -104,7 +104,7 @@ export function AgentSystemPromptBlock({ prompt, onPromptChange, applyTemplate }
                     variant="outline"
                     onClick={() => applyTemplate(key)}
                     className={cn(
-                      "h-auto min-h-0 flex-col items-start gap-2 rounded-xl border border-border/70 bg-background/90 p-3 text-left font-normal",
+                      "h-auto min-h-14 w-full min-w-0 flex-row items-stretch justify-start gap-2.5 whitespace-normal rounded-xl border border-border/70 bg-background/90 px-3 py-2.5 text-left font-normal sm:min-h-[3.75rem] sm:gap-3 sm:px-3.5 sm:py-3",
                       "transition-all duration-200",
                       "hover:-translate-y-0.5 hover:border-emerald-500/35 hover:bg-emerald-500/[0.06] hover:shadow-md",
                       ring,
@@ -112,13 +112,13 @@ export function AgentSystemPromptBlock({ prompt, onPromptChange, applyTemplate }
                   >
                     <span
                       className={cn(
-                        "flex h-9 w-9 items-center justify-center rounded-lg transition-colors",
+                        "flex w-10 min-w-10 shrink-0 items-center justify-center self-stretch rounded-lg transition-colors sm:w-11 sm:min-w-11",
                         well,
                       )}
                     >
-                      <Icon className="h-4 w-4" aria-hidden />
+                      <Icon className="h-4 w-4 shrink-0" aria-hidden />
                     </span>
-                    <span className="whitespace-normal text-left text-xs font-medium leading-tight text-foreground sm:text-sm">
+                    <span className="flex min-w-0 flex-1 items-center whitespace-normal text-left text-xs font-medium leading-snug text-foreground sm:text-sm sm:leading-tight">
                       {t(`agent.promptTpl.${key}`)}
                     </span>
                   </Button>

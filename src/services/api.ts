@@ -171,6 +171,11 @@ api.onRequest((config) => {
     headers.set("Content-Type", "application/json");
   }
 
+  if (config.method === "GET" && config.cache === "no-store") {
+    headers.set("Cache-Control", "no-cache");
+    headers.set("Pragma", "no-cache");
+  }
+
   if (!config.skipAuth) {
     const token = useAuthStore.getState().session?.accessToken;
     if (token) {

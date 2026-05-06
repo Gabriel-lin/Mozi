@@ -67,6 +67,50 @@ export interface CreateLocalSkillInput {
   description?: string | null;
 }
 
+/** Step persisted on `AgentRun` after execution (LangChain tool loop). */
+export interface AgentRunStep {
+  tool: string;
+  input: string;
+  output: string;
+}
+
+export interface RunOut {
+  id: string;
+  agent_id: string;
+  status: string;
+  goal: string | null;
+  steps: AgentRunStep[];
+  output: Record<string, unknown> | null;
+  error: string | null;
+  total_steps: number;
+  triggered_by: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  pinned_at?: string | null;
+  feedback?: string | null;
+}
+
+export interface RunListOut {
+  runs: RunOut[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface RunAttachmentIn {
+  name: string;
+  mime_type?: string | null;
+  text?: string | null;
+}
+
+export interface RunCreateInput {
+  goal: string;
+  attachments?: RunAttachmentIn[];
+  /** Overrides agent default model for this run (OpenAI id or vLLM served name). */
+  model?: string | null;
+}
+
 export const agentApi = {
   list(workspaceId: string, page = 1, pageSize = 20) {
     return api.get<AgentListOut>(`${PREFIX}/`, {
@@ -99,5 +143,39 @@ export const agentApi = {
 
   update(agentId: string, body: AgentUpdateInput) {
     return api.patch<AgentOut>(`${PREFIX}/${agentId}`, body);
+  },
+
+  startRun(agentId: string, body: RunCreateInput) {
+    return api.post<RunOut>(`${PREFIX}/${agentId}/run`, body);
+  },
+
+  listRuns(agentId: string, page = 1, pageSize = 30) {
+    return api.get<RunListOut>(`${PREFIX}/${agentId}/runs`, {
+      params: { page, page_size: pageSize, _: Date.now() },
+      cache: "no-store",
+    });
+  },
+
+  getRun(runId: string) {
+    return api.get<RunOut>(`${PREFIX}/runs/${runId}`, {
+      params: { _: Date.now() },
+      cache: "no-store",
+    });
+  },
+
+  cancelRun(runId: string) {
+    return api.post<void>(`${PREFIX}/runs/${runId}/cancel`, {});
+  },
+
+  deleteRun(runId: string) {
+    return api.delete<void>(`${PREFIX}/runs/${runId}`);
+  },
+
+  pinRun(runId: string, pinned: boolean) {
+    return api.post<RunOut>(`${PREFIX}/runs/${runId}/pin`, { pinned });
+  },
+
+  setRunFeedback(runId: string, feedback: "positive" | "negative") {
+    return api.post<RunOut>(`${PREFIX}/runs/${runId}/feedback`, { feedback });
   },
 };

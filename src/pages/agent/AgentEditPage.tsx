@@ -17,7 +17,12 @@ import { mergeSkillCatalogItems, listLocalAgentSkillsFromTauri } from "@/lib/loc
 import { agentApi, type AgentSkillCatalogOut, type AgentSkillSourceItem } from "@/services/agent";
 import { AgentSkillConfigBlock } from "./components/AgentSkillConfigBlock";
 import { AgentSystemPromptBlock, type PromptTplKey } from "./components/AgentSystemPromptBlock";
-import { AGENT_PROVIDER_IDS, coerceAgentProviderId, type AgentProviderId } from "./utils";
+import {
+  AGENT_PROVIDER_IDS,
+  coerceAgentProviderId,
+  modelDisplayLabel,
+  type AgentProviderId,
+} from "./utils";
 import { useAgentProviderModels } from "./hooks/useAgentProviderModels";
 
 function readSkillsConfig(cfg: Record<string, unknown>): string[] {
@@ -243,7 +248,7 @@ export function AgentEditPage() {
                     ) : (
                       models.map((m) => (
                         <SelectItem key={m.id} value={m.id}>
-                          {m.name || m.id}
+                          {modelDisplayLabel(m.name, m.id)}
                         </SelectItem>
                       ))
                     )}

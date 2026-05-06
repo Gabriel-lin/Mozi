@@ -5,3 +5,4 @@ export {
   parseLlmProvider,
   type AgentUiType,
 } from "./agentConfig";
+export { modelDisplayLabel } from "./modelDisplayLabel";

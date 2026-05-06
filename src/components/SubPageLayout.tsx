@@ -29,11 +29,11 @@ export function SubPageLayout({
   return (
     <div
       className={cn(
-        "mx-auto w-full min-w-0 max-w-5xl space-y-6 p-6 md:p-8 animate-fade-in",
+        "mx-auto flex h-full min-h-0 w-full min-w-0 max-w-5xl flex-col gap-6 p-6 md:p-8 animate-fade-in",
         className,
       )}
     >
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex shrink-0 items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={() => navigate(-1)}
@@ -61,7 +61,7 @@ export function SubPageLayout({
         </div>
         {actions && <div className="shrink-0 flex items-center gap-2">{actions}</div>}
       </div>
-      {children}
+      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">{children}</div>
     </div>
   );
 }

@@ -1,7 +1,23 @@
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
-from sqlalchemy.ext.asyncio import AsyncSession
+import asyncio
+import json
+import time
 
-from shared.database import get_db
+import structlog
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Response,
+    UploadFile,
+    WebSocket,
+    WebSocketDisconnect,
+)
+from redis.asyncio import Redis as AsyncRedis
+from shared.config import get_settings
+from shared.database import async_session_factory, get_db
 from shared.dependencies import get_current_user
 from shared.models.user import User
 from shared.schemas.agent import (
@@ -11,13 +27,23 @@ from shared.schemas.agent import (
     AgentOut,
     AgentUpdate,
     RunCreate,
+    RunFeedbackBody,
     RunListOut,
     RunOut,
+    RunPinBody,
 )
 from shared.schemas.skills import AgentSkillCatalogOut, CreateLocalSkillIn, SkillSourceOut
-from services.workspace.service import is_workspace_member, get_member_role
-from . import service
-from . import skills_fs
+from shared.security import verify_token
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from services.sandbox.agent_run_pub import agent_cancel_key, agent_run_channel
+from services.workspace.service import get_member_role, is_workspace_member
+
+from . import service, skills_fs
+
+log = structlog.get_logger()
+settings = get_settings()
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
@@ -243,13 +269,14 @@ async def start_run(
         raise HTTPException(404, "Not found")
     if not await is_workspace_member(db, agent.workspace_id, user.id):
         raise HTTPException(403, "Forbidden")
-    run = await service.start_run(db, agent_id, body.goal, user.id)
+    run = await service.start_run(db, agent_id, body.goal, user.id, body.attachments, body.model)
     return RunOut.model_validate(run)
 
 
 @router.get("/{agent_id}/runs", response_model=RunListOut)
 async def list_runs(
     agent_id: str,
+    response: Response,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     user: User = Depends(get_current_user),
@@ -261,12 +288,182 @@ async def list_runs(
     if not await is_workspace_member(db, agent.workspace_id, user.id):
         raise HTTPException(403, "Forbidden")
     runs, total, p, ps = await service.list_runs(db, agent_id, page, page_size)
+    response.headers["Cache-Control"] = "no-store"
     return RunListOut(runs=[RunOut.model_validate(r) for r in runs], total=total, page=p, page_size=ps)
 
 
 @router.get("/runs/{run_id}", response_model=RunOut)
-async def get_run(run_id: str, db: AsyncSession = Depends(get_db)):
+async def get_run(run_id: str, response: Response, db: AsyncSession = Depends(get_db)):
     run = await service.get_run(db, run_id)
     if not run:
         raise HTTPException(404, "Not found")
+    response.headers["Cache-Control"] = "no-store"
     return RunOut.model_validate(run)
+
+
+@router.post("/runs/{run_id}/cancel")
+async def cancel_agent_run(
+    run_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    run = await service.get_run(db, run_id)
+    if not run:
+        raise HTTPException(404, "Not found")
+    agent = await service.get_agent(db, run.agent_id)
+    if not agent or not await is_workspace_member(db, agent.workspace_id, user.id):
+        raise HTTPException(403, "Forbidden")
+    redis = AsyncRedis.from_url(settings.redis_url, decode_responses=True)
+    try:
+        await redis.set(agent_cancel_key(run_id), "1", ex=600)
+        cancel_evt = {
+            "type": "cancel_requested",
+            "run_id": run_id,
+            "timestamp": int(time.time() * 1000),
+        }
+        await redis.publish(agent_run_channel(run_id), json.dumps(cancel_evt))
+    finally:
+        await redis.aclose()
+    return {"success": True}
+
+
+@router.delete("/runs/{run_id}", status_code=204)
+async def delete_agent_run(
+    run_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    run = await service.get_run(db, run_id)
+    if not run:
+        raise HTTPException(404, "Not found")
+    agent = await service.get_agent(db, run.agent_id)
+    if not agent or not await is_workspace_member(db, agent.workspace_id, user.id):
+        raise HTTPException(403, "Forbidden")
+    ok = await service.delete_run(db, run_id)
+    if not ok:
+        raise HTTPException(404, "Not found")
+
+
+@router.post("/runs/{run_id}/pin", response_model=RunOut)
+async def pin_agent_run(
+    run_id: str,
+    body: RunPinBody,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    run = await service.get_run(db, run_id)
+    if not run:
+        raise HTTPException(404, "Not found")
+    agent = await service.get_agent(db, run.agent_id)
+    if not agent or not await is_workspace_member(db, agent.workspace_id, user.id):
+        raise HTTPException(403, "Forbidden")
+    updated = await service.set_run_pinned(db, run_id, body.pinned)
+    if not updated:
+        raise HTTPException(404, "Not found")
+    return RunOut.model_validate(updated)
+
+
+@router.post("/runs/{run_id}/feedback", response_model=RunOut)
+async def feedback_agent_run(
+    run_id: str,
+    body: RunFeedbackBody,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    run = await service.get_run(db, run_id)
+    if not run:
+        raise HTTPException(404, "Not found")
+    agent = await service.get_agent(db, run.agent_id)
+    if not agent or not await is_workspace_member(db, agent.workspace_id, user.id):
+        raise HTTPException(403, "Forbidden")
+    updated = await service.set_run_feedback(db, run_id, body.feedback)
+    if not updated:
+        raise HTTPException(404, "Not found")
+    return RunOut.model_validate(updated)
+
+
+@router.websocket("/runs/{run_id}/ws")
+async def agent_run_websocket(websocket: WebSocket, run_id: str, token: str | None = Query(None)):
+    """Subscribe to agent run events (Redis channel ``agent:run:{run_id}``).
+
+    Authenticate with ``?token=<JWT>`` (same access token as REST). Client may send
+    ``{"action": "cancel"}`` to request cooperative cancellation.
+    """
+    if not token:
+        await websocket.close(code=4401)
+        return
+    user_id = verify_token(token)
+    if not user_id:
+        await websocket.close(code=4401)
+        return
+
+    async with async_session_factory() as db:
+        user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+        if not user:
+            await websocket.close(code=4401)
+            return
+        run = await service.get_run(db, run_id)
+        if not run:
+            await websocket.close(code=1008)
+            return
+        agent = await service.get_agent(db, run.agent_id)
+        if not agent or not await is_workspace_member(db, agent.workspace_id, user.id):
+            await websocket.close(code=1008)
+            return
+
+    await websocket.accept()
+    redis = AsyncRedis.from_url(settings.redis_url, decode_responses=True)
+    pubsub = redis.pubsub()
+    channel = agent_run_channel(run_id)
+    try:
+        await pubsub.subscribe(channel)
+        log.info("agent_ws_subscribed", run_id=run_id, channel=channel)
+
+        terminal = await redis.get(f"{channel}:terminal")
+        if terminal:
+            await websocket.send_text(terminal)
+            return
+
+        async def _relay_events():
+            while True:
+                msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                if msg and msg["type"] == "message":
+                    await websocket.send_text(msg["data"])
+                    try:
+                        data = json.loads(msg["data"])
+                    except json.JSONDecodeError:
+                        continue
+                    if data.get("type") in ("run_completed", "run_failed", "run_stopped"):
+                        return
+                await asyncio.sleep(0.05)
+
+        async def _handle_client():
+            try:
+                while True:
+                    raw = await websocket.receive_text()
+                    try:
+                        cmd = json.loads(raw)
+                    except json.JSONDecodeError:
+                        continue
+                    if cmd.get("action") == "cancel":
+                        await redis.set(agent_cancel_key(run_id), "1", ex=600)
+                        log.info("agent_ws_cancel_requested", run_id=run_id)
+            except WebSocketDisconnect:
+                pass
+
+        relay_task = asyncio.create_task(_relay_events())
+        client_task = asyncio.create_task(_handle_client())
+        done, pending = await asyncio.wait(
+            [relay_task, client_task],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        for task in pending:
+            task.cancel()
+    except WebSocketDisconnect:
+        log.info("agent_ws_disconnected", run_id=run_id)
+    except Exception as exc:
+        log.error("agent_ws_error", run_id=run_id, error=str(exc))
+    finally:
+        await pubsub.unsubscribe(channel)
+        await pubsub.aclose()
+        await redis.aclose()
