@@ -29,6 +29,13 @@ spec:
       backends:
         - serviceName: workspace-service
           servicePort: 3002
+    - name: toolkits
+      match:
+        paths:
+          - /api/v1/toolkits/*
+      backends:
+        - serviceName: workspace-service
+          servicePort: 3002
     - name: agents
       match:
         paths:

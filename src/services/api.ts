@@ -147,6 +147,11 @@ class ApiClient {
   delete<T = unknown>(url: string, config?: Omit<RequestConfig, "url" | "method">) {
     return this.request<T>({ ...config, url, method: "DELETE" });
   }
+
+  /** Multipart (do not set JSON Content-Type; browser sets boundary). */
+  postFormData<T = unknown>(url: string, formData: FormData) {
+    return this.request<T>({ url, method: "POST", body: formData });
+  }
 }
 
 // ── Singleton instance ──
@@ -160,8 +165,15 @@ export const api = new ApiClient(BASE_URL);
 api.onRequest((config) => {
   const headers = new Headers(config.headers);
 
-  if (!headers.has("Content-Type") && config.method !== "GET") {
+  if (config.body instanceof FormData) {
+    headers.delete("Content-Type");
+  } else if (!headers.has("Content-Type") && config.method && config.method !== "GET") {
     headers.set("Content-Type", "application/json");
+  }
+
+  if (config.method === "GET" && config.cache === "no-store") {
+    headers.set("Cache-Control", "no-cache");
+    headers.set("Pragma", "no-cache");
   }
 
   if (!config.skipAuth) {

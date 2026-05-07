@@ -8,7 +8,7 @@ import { SheetFooter } from "@/components/ui/sheet";
 import { ConfigField } from "./ConfigField";
 import { ImeInput } from "./ImeInput";
 import { cn } from "@/lib/utils";
-import { workflowApi, type ProviderModel } from "@/services/workflow";
+import { llmApi, type ProviderModel } from "@/services/llm";
 import {
   getDefaultBaseUrl,
   inferUseCustomBaseUrl,
@@ -135,7 +135,7 @@ function useProviderModels(provider: Provider, apiKey?: string, apiBase?: string
     if (isCustom) return;
     let cancelled = false;
 
-    workflowApi
+    llmApi
       .getProviderModels(provider, apiKey, apiBase)
       .then((res) => {
         if (cancelled) return;

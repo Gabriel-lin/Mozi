@@ -1,0 +1,148 @@
+diff --git a/dist/index.js b/dist/index.js
+index bf8f55b8027a88177b523464d93995a795593366..3b387633446ff447745d0361635802d14a79239f 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -230,9 +230,14 @@ function convertToOpenAIChatMessages({
+       }
+       case "assistant": {
+         let text = "";
++        let reasoningText = "";
+         const toolCalls = [];
+         for (const part of content) {
+           switch (part.type) {
++            case "reasoning": {
++              reasoningText += part.text;
++              break;
++            }
+             case "text": {
+               text += part.text;
+               break;
+@@ -250,11 +255,15 @@ function convertToOpenAIChatMessages({
+             }
+           }
+         }
+-        messages.push({
++        const assistantMessage = {
+           role: "assistant",
+           content: toolCalls.length > 0 ? text || null : text,
+           tool_calls: toolCalls.length > 0 ? toolCalls : void 0
+-        });
++        };
++        if (reasoningText.length > 0) {
++          assistantMessage.reasoning_content = reasoningText;
++        }
++        messages.push(assistantMessage);
+         break;
+       }
+       case "tool": {
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 0f8b580e6c3bd92742f3c4df1432f744d88a9721..8e59c7bcb5f6e1dcda24b7dd64e55d9a43c38a3e 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -219,9 +219,14 @@ function convertToOpenAIChatMessages({
+       }
+       case "assistant": {
+         let text = "";
++        let reasoningText = "";
+         const toolCalls = [];
+         for (const part of content) {
+           switch (part.type) {
++            case "reasoning": {
++              reasoningText += part.text;
++              break;
++            }
+             case "text": {
+               text += part.text;
+               break;
+@@ -239,11 +244,15 @@ function convertToOpenAIChatMessages({
+             }
+           }
+         }
+-        messages.push({
++        const assistantMessage = {
+           role: "assistant",
+           content: toolCalls.length > 0 ? text || null : text,
+           tool_calls: toolCalls.length > 0 ? toolCalls : void 0
+-        });
++        };
++        if (reasoningText.length > 0) {
++          assistantMessage.reasoning_content = reasoningText;
++        }
++        messages.push(assistantMessage);
+         break;
+       }
+       case "tool": {
+diff --git a/dist/internal/index.js b/dist/internal/index.js
+index 9dc2f492f247d56af0ec196c4d56b61ce372b528..d658bef86fd7f2566168c649fead3e9906b32bb7 100644
+--- a/dist/internal/index.js
++++ b/dist/internal/index.js
+@@ -260,9 +260,14 @@ function convertToOpenAIChatMessages({
+       }
+       case "assistant": {
+         let text = "";
++        let reasoningText = "";
+         const toolCalls = [];
+         for (const part of content) {
+           switch (part.type) {
++            case "reasoning": {
++              reasoningText += part.text;
++              break;
++            }
+             case "text": {
+               text += part.text;
+               break;
+@@ -280,11 +285,15 @@ function convertToOpenAIChatMessages({
+             }
+           }
+         }
+-        messages.push({
++        const assistantMessage = {
+           role: "assistant",
+           content: toolCalls.length > 0 ? text || null : text,
+           tool_calls: toolCalls.length > 0 ? toolCalls : void 0
+-        });
++        };
++        if (reasoningText.length > 0) {
++          assistantMessage.reasoning_content = reasoningText;
++        }
++        messages.push(assistantMessage);
+         break;
+       }
+       case "tool": {
+diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
+index f6ecedaf68f8dda4240400b205c59e5f97812bc9..275cfd3f7b1955f89fb83cc324effee1b3aca3fe 100644
+--- a/dist/internal/index.mjs
++++ b/dist/internal/index.mjs
+@@ -211,9 +211,14 @@ function convertToOpenAIChatMessages({
+       }
+       case "assistant": {
+         let text = "";
++        let reasoningText = "";
+         const toolCalls = [];
+         for (const part of content) {
+           switch (part.type) {
++            case "reasoning": {
++              reasoningText += part.text;
++              break;
++            }
+             case "text": {
+               text += part.text;
+               break;
+@@ -231,11 +236,15 @@ function convertToOpenAIChatMessages({
+             }
+           }
+         }
+-        messages.push({
++        const assistantMessage = {
+           role: "assistant",
+           content: toolCalls.length > 0 ? text || null : text,
+           tool_calls: toolCalls.length > 0 ? toolCalls : void 0
+-        });
++        };
++        if (reasoningText.length > 0) {
++          assistantMessage.reasoning_content = reasoningText;
++        }
++        messages.push(assistantMessage);
+         break;
+       }
+       case "tool": {

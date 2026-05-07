@@ -99,18 +99,6 @@ export interface VersionListOut {
   page_size: number;
 }
 
-export interface ProviderModel {
-  id: string;
-  name: string;
-  default?: boolean;
-}
-
-export interface ProviderModelsOut {
-  provider: string;
-  models: ProviderModel[];
-  source?: "live" | "openrouter" | "none";
-}
-
 // ── API ──
 
 const PREFIX = "/workflows";
@@ -168,12 +156,5 @@ export const workflowApi = {
     const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
     const host = window.location.host;
     return new WebSocket(`${proto}//${host}/api/v1${PREFIX}/runs/${runId}/ws`);
-  },
-
-  getProviderModels(provider: string, apiKey?: string, apiBase?: string) {
-    const params: Record<string, string> = { provider };
-    if (apiKey) params.api_key = apiKey;
-    if (apiBase) params.api_base = apiBase;
-    return api.get<ProviderModelsOut>(`${PREFIX}/llm/providers/models`, { params });
   },
 };

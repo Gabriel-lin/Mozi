@@ -474,6 +474,38 @@ Swarm trait  继承：AgentRegistrar + ToolRegistrar + ContextRegistrar
 * Docker / Docker Compose — 本地开发
 * Prometheus + Grafana + Loki — 可观测性
 
+worksapce & toolkit
+┌─────────────────────────────────────────────────────────┐
+│                    workspace 服务                         │
+│                                                          │
+│  workspaces / members / toolkits (registry)              │
+│                                                          │
+│  toolkits 表:  全局工具目录                                │
+│    ├─ 内置工具 (is_builtin=true, seed 写入)               │
+│    └─ 外部工具 (is_builtin=false, 动态注册)               │
+│                                                          │
+│  workspace_toolkits 表:  N:M 安装关系                     │
+│                                                          │
+│  API:                                                    │
+│    GET  /workspaces/{id}/toolkits/       ← 列出(含安装状态)│
+│    POST /workspaces/{id}/toolkits/{id}/install           │
+│    DELETE /workspaces/{id}/toolkits/{id}/uninstall        │
+│    POST /toolkits/register               ← 注册外部工具   │
+└──────────────────────┬──────────────────────────────────┘
+                       │ agent 启动时查询已装工具
+                       ▼
+┌──────────────────────────────┐    ┌─────────────────────┐
+│        agent 服务             │───▶│    sandbox (Celery)  │
+│  Agent CRUD / run trigger    │    │  executor.py         │
+└──────────────────────────────┘    │  tools=已装工具列表   │
+                                    └────────┬────────────┘
+                                             │ 外部工具调用
+                                             ▼
+                                    ┌─────────────────────┐
+                                    │     mcp 服务         │
+                                    │  gateway.py 代理执行  │
+                                    └─────────────────────┘
+
 ---
 
 ## Development

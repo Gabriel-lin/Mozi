@@ -9,6 +9,11 @@ from shared.schemas.workspace import (
     AddMemberRequest, MemberListOut, MemberOut, WorkspaceCreate,
     WorkspaceListOut, WorkspaceOut, WorkspaceUpdate,
 )
+from shared.schemas.mcp_server import WorkspaceMcpServerListOut, WorkspaceMcpServerOut
+from shared.schemas.toolkit import (
+    InstalledToolkitOut, ResolvedToolkitsOut, ToolkitListOut,
+    ToolkitOut, ToolkitRegister, ToolkitUpdate,
+)
 from . import service
 
 router = APIRouter(tags=["workspace"])
@@ -141,5 +146,122 @@ async def remove_member(ws_id: str, target_id: str, user: User = Depends(get_cur
     return {"success": True}
 
 
+@ws_router.get("/{ws_id}/mcp-servers", response_model=WorkspaceMcpServerListOut)
+async def list_workspace_mcp_servers(ws_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not await service.is_workspace_member(db, ws_id, user.id):
+        raise HTTPException(403, "Forbidden")
+    rows = await service.list_workspace_mcp_servers(db, ws_id)
+    return WorkspaceMcpServerListOut(
+        servers=[
+            WorkspaceMcpServerOut(
+                id=s.id,
+                name=s.name,
+                url=s.url,
+                transport=s.transport,
+                workspace_id=s.workspace_id,
+            )
+            for s in rows
+        ],
+    )
+
+
+# ── Workspace Toolkits ──
+
+@ws_router.get("/{ws_id}/toolkits/", response_model=ToolkitListOut)
+async def list_toolkits(ws_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not await service.is_workspace_member(db, ws_id, user.id):
+        raise HTTPException(403, "Forbidden")
+    rows = await service.list_workspace_toolkits(db, ws_id)
+    toolkits = [
+        ToolkitOut(
+            id=tk.id, name=tk.name, description=tk.description,
+            version=tk.version, installed=installed,
+            category=tk.category, icon=tk.icon,
+            source=tk.source, executor_key=tk.executor_key,
+            mcp_server_id=tk.mcp_server_id,
+        )
+        for tk, installed in rows
+    ]
+    return ToolkitListOut(toolkits=toolkits, total=len(toolkits))
+
+
+@ws_router.post("/{ws_id}/toolkits/{toolkit_id}/install")
+async def install_toolkit(ws_id: str, toolkit_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not await service.is_workspace_member(db, ws_id, user.id):
+        raise HTTPException(403, "Forbidden")
+    try:
+        await service.install_toolkit(db, ws_id, toolkit_id, user.id)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    return {"success": True}
+
+
+@ws_router.delete("/{ws_id}/toolkits/{toolkit_id}/uninstall")
+async def uninstall_toolkit(ws_id: str, toolkit_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if not await service.is_workspace_member(db, ws_id, user.id):
+        raise HTTPException(403, "Forbidden")
+    await service.uninstall_toolkit(db, ws_id, toolkit_id)
+    return {"success": True}
+
+
+@ws_router.get("/{ws_id}/toolkits/resolve", response_model=ResolvedToolkitsOut)
+async def resolve_toolkits(ws_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Return fully resolved installed toolkits for agent/sandbox consumption."""
+    if not await service.is_workspace_member(db, ws_id, user.id):
+        raise HTTPException(403, "Forbidden")
+    rows = await service.resolve_installed_toolkits(db, ws_id)
+    return ResolvedToolkitsOut(toolkits=[InstalledToolkitOut(**r) for r in rows])
+
+
+# ── Toolkit Registry (global, not workspace-scoped) ──
+
+tk_router = APIRouter(prefix="/toolkits", tags=["toolkits"])
+
+
+@tk_router.post("/register", response_model=ToolkitOut, status_code=201)
+async def register_toolkit(body: ToolkitRegister, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if body.source == "mcp" and body.workspace_id:
+        if not await service.is_workspace_member(db, body.workspace_id, user.id):
+            raise HTTPException(403, "Forbidden")
+    try:
+        tk = await service.register_toolkit(db, body.model_dump())
+    except ValueError as e:
+        if str(e) == "invalid_mcp_server":
+            raise HTTPException(422, "invalid_mcp_server") from e
+        raise
+    return ToolkitOut(
+        id=tk.id, name=tk.name, description=tk.description,
+        version=tk.version, installed=False,
+        category=tk.category, icon=tk.icon,
+        source=tk.source, executor_key=tk.executor_key,
+        mcp_server_id=tk.mcp_server_id,
+    )
+
+
+@tk_router.patch("/{toolkit_id}", response_model=ToolkitOut)
+async def update_toolkit(toolkit_id: str, body: ToolkitUpdate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    tk = await service.update_toolkit(db, toolkit_id, body.model_dump(exclude_unset=True))
+    if not tk:
+        raise HTTPException(404, "Not found")
+    return ToolkitOut(
+        id=tk.id, name=tk.name, description=tk.description,
+        version=tk.version, installed=False,
+        category=tk.category, icon=tk.icon,
+        source=tk.source, executor_key=tk.executor_key,
+        mcp_server_id=tk.mcp_server_id,
+    )
+
+
+@tk_router.delete("/{toolkit_id}")
+async def delete_toolkit(toolkit_id: str, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    try:
+        await service.delete_toolkit(db, toolkit_id)
+    except ValueError as e:
+        code = 400 if str(e) == "cannot_delete_builtin" else 404
+        raise HTTPException(code, str(e))
+    return {"success": True}
+
+
 router.include_router(user_router)
 router.include_router(ws_router)
+router.include_router(tk_router)
