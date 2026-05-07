@@ -2,14 +2,14 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { ArrowLeft, Bot, Pencil } from "lucide-react";
-import { AssistantRuntimeProvider } from "@assistant-ui/react";
 import { Button } from "@/components/ui/button";
 import { agentApi, type RunOut } from "@/services/agent";
-import { useAgentRunRuntime } from "@/pages/agent/hooks/useAgentRunRuntime";
-import { AgentRunGrokThread } from "@/pages/agent/components/AgentRunGrokThread";
-import { AgentRunHistorySidebar } from "@/pages/agent/components/AgentRunHistorySidebar";
+import { AgentRunPageShadcnBody } from "@/pages/agent/components/AgentRunPageShadcnBody";
+import { AgentRunSession } from "@/pages/agent/AgentRunSession";
+// import { Shadcn } from "@/pages/agent/components/AssistantUiShadcnExample";
+// import { AssistantUiDocsRuntimeProvider } from "@/pages/agent/components/AssistantUiDocsRuntimeProvider";
 import { cn } from "@/lib/utils";
-import { coerceAgentProviderId, type AgentProviderId } from "@/pages/agent/utils";
+import { AgentProviderId, coerceAgentProviderId } from "./utils";
 
 export function AgentRunPage() {
   const { t } = useTranslation();
@@ -23,6 +23,8 @@ export function AgentRunPage() {
   const [runs, setRuns] = useState<RunOut[]>([]);
   const [runsLoading, setRunsLoading] = useState(true);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  /** Bumps when starting a blank thread so `AgentRunSession` remounts with a clean runtime. */
+  const [draftEpoch, setDraftEpoch] = useState(0);
 
   const fetchRuns = useCallback(
     async (opts?: { silent?: boolean }) => {
@@ -61,6 +63,8 @@ export function AgentRunPage() {
         const cfg = a.config ?? {};
         setAgentLlmProvider(coerceAgentProviderId(String(cfg.llm_provider ?? "openai")));
         setRuns(list.runs);
+        setSelectedRunId(null);
+        setDraftEpoch(0);
       } catch {
         if (!cancelled) navigate("/agent");
       } finally {
@@ -72,42 +76,18 @@ export function AgentRunPage() {
     };
   }, [agentId, navigate]);
 
-  const {
-    runtime,
-    loadRun,
-    clearThread,
-    dictationSupported,
-    composerModel,
-    setComposerModel,
-    modelSelectRows,
-    modelsLoading,
-  } = useAgentRunRuntime({
-    agentId,
-    agentLlmProvider,
-    agentDefaultModel,
-    onRunSettled: () => {
-      void fetchRuns({ silent: true });
-    },
-  });
-
   const onNewChat = useCallback(() => {
-    clearThread();
     setSelectedRunId(null);
-  }, [clearThread]);
+    setDraftEpoch((n) => n + 1);
+  }, []);
 
-  const onSelectRun = useCallback(
-    async (runId: string) => {
-      setSelectedRunId(runId);
-      try {
-        await loadRun(runId);
-      } catch {
-        setSelectedRunId(null);
-      }
-    },
-    [loadRun],
-  );
+  const onSelectRun = useCallback((runId: string) => {
+    setSelectedRunId(runId);
+  }, []);
 
   if (!agentId) return null;
+
+  const sessionMountKey = `${agentId}-${selectedRunId ?? `draft-${draftEpoch}`}`;
 
   return (
     <div
@@ -133,9 +113,7 @@ export function AgentRunPage() {
               <h1 className="truncate text-base font-semibold tracking-tight text-foreground">
                 {t("agent.runTitle")}
               </h1>
-              {agentName ? (
-                <p className="truncate text-xs text-muted-foreground">{agentName}</p>
-              ) : null}
+              <p className="truncate text-xs text-muted-foreground">{agentId}</p>
             </div>
           </div>
         </div>
@@ -152,30 +130,37 @@ export function AgentRunPage() {
         </Button>
       </header>
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden p-2 md:flex-row md:gap-3 md:p-4">
-        <AgentRunHistorySidebar
-          runs={runs}
-          loading={runsLoading}
+      
+      <AgentRunPageShadcnBody
+        runs={runs}
+        loading={runsLoading}
+        selectedRunId={selectedRunId}
+        onSelectRun={onSelectRun}
+        onNewChat={onNewChat}
+        onRunsChanged={() => {
+          void fetchRuns({ silent: true });
+        }}
+        agentName={agentName}
+      >
+        <AgentRunSession
+          key={sessionMountKey}
+          agentId={agentId}
           selectedRunId={selectedRunId}
-          onSelectRun={onSelectRun}
-          onNewChat={onNewChat}
-          onRunsChanged={() => {
+          agentLlmProvider={agentLlmProvider}
+          agentDefaultModel={agentDefaultModel}
+          agentName={agentName}
+          onRunSettled={() => {
             void fetchRuns({ silent: true });
           }}
         />
-        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/60 bg-card/50 shadow-sm ring-1 ring-border/30 backdrop-blur-sm dark:bg-card/30">
-          <AssistantRuntimeProvider runtime={runtime}>
-            <AgentRunGrokThread
-              agentName={agentName}
-              dictationSupported={dictationSupported}
-              composerModel={composerModel}
-              onComposerModelChange={setComposerModel}
-              modelSelectRows={modelSelectRows}
-              modelsLoading={modelsLoading}
-            />
-          </AssistantRuntimeProvider>
-        </div>
-      </div>
+      </AgentRunPageShadcnBody>
+     
+
+      {/* <div className="min-h-0 flex-1 overflow-hidden">
+        <AssistantUiDocsRuntimeProvider>
+          <Shadcn />
+        </AssistantUiDocsRuntimeProvider>
+      </div> */}
     </div>
   );
 }

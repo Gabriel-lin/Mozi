@@ -30,10 +30,31 @@ export class AgentRunWorkerStaleError extends Error {
   }
 }
 
+/** `GET /runs/{id}` failed repeatedly while waiting — avoids infinite “running”. */
+export class AgentRunPollFailedError extends Error {
+  constructor() {
+    super("AgentRunPollFailedError");
+    this.name = "AgentRunPollFailedError";
+  }
+}
+
+/** Run never reached a terminal state within the client wait budget (orphaned `executing`, etc.). */
+export class AgentRunSubscribeStallError extends Error {
+  constructor() {
+    super("AgentRunSubscribeStallError");
+    this.name = "AgentRunSubscribeStallError";
+  }
+}
+
 const WS_TERMINAL = new Set(["run_completed", "run_failed", "run_stopped"]);
 
 /** DB fallback while WS connects. Keep one request in flight to avoid stale responses piling up. */
 const POLL_MS = 400;
+
+/** Above server `agent_run_timeout_seconds` (240) with headroom; then we stop waiting. */
+const SUBSCRIBE_STALL_MS = 300_000;
+
+const MAX_CONSECUTIVE_POLL_FAILURES = 75;
 
 function terminalFromDbStatus(status: string): AgentRunTerminal | null {
   if (status === "completed") return "completed";
@@ -71,6 +92,7 @@ export function subscribeAgentRunEvents(
     let settled = false;
     let pollTimer: ReturnType<typeof setTimeout> | undefined;
     let pollInFlight = false;
+    let consecutivePollFailures = 0;
 
     const cleanup = () => {
       if (pollTimer !== undefined) {
@@ -91,6 +113,7 @@ export function subscribeAgentRunEvents(
       if (settled) return true;
       try {
         const run = await agentApi.getRun(runId);
+        consecutivePollFailures = 0;
         const kind = terminalFromDbStatus(run.status);
         if (kind) {
           ws.close();
@@ -104,6 +127,16 @@ export function subscribeAgentRunEvents(
         }
         return false;
       } catch {
+        consecutivePollFailures += 1;
+        if (consecutivePollFailures >= MAX_CONSECUTIVE_POLL_FAILURES) {
+          try {
+            ws.close();
+          } catch {
+            /* ignore */
+          }
+          finish(() => reject(new AgentRunPollFailedError()));
+          return true;
+        }
         return false;
       }
     };
@@ -122,7 +155,19 @@ export function subscribeAgentRunEvents(
       cleanup();
       pollTimer = setTimeout(() => {
         void (async () => {
-          await pollOnce();
+          if (!settled && Date.now() - subscribeStartedAt >= SUBSCRIBE_STALL_MS) {
+            try {
+              ws.close();
+            } catch {
+              /* ignore */
+            }
+            const closedOk = await tryFinishFromDb();
+            if (!closedOk && !settled) {
+              finish(() => reject(new AgentRunSubscribeStallError()));
+            }
+          } else {
+            await pollOnce();
+          }
           if (!settled) schedulePoll(POLL_MS);
         })();
       }, delayMs);

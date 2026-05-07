@@ -1,9 +1,12 @@
-from datetime import UTC
+from datetime import UTC, datetime
 
+from redis.asyncio import Redis as AsyncRedis
 from shared.config import get_settings
 from shared.models.agent import Agent, AgentRun
 from sqlalchemy import case, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from services.sandbox.agent_run_pub import agent_cancel_key, agent_run_channel
 
 settings = get_settings()
 
@@ -21,6 +24,45 @@ def build_effective_goal(goal: str, attachments: list | None) -> str:
             parts.append(f"\n\n---\n_(Attachment `{name}` — no text payload)_")
     s = "\n".join(parts)
     return s[:80_000]
+
+
+def _linear_conversation_rows(conversation: list | dict | None) -> list:
+    """Normalize DB `conversation` JSON (legacy list or v2 {linear, tree}) to role/text rows for the worker."""
+    if conversation is None:
+        return []
+    if isinstance(conversation, list):
+        return conversation
+    if isinstance(conversation, dict):
+        if conversation.get("v") == 2:
+            lin = conversation.get("linear")
+            return list(lin) if isinstance(lin, list) else []
+        lin = conversation.get("linear") or conversation.get("messages")
+        return list(lin) if isinstance(lin, list) else []
+    return []
+
+
+def worker_goal_from_prior_conversation(conversation: list | dict | None, current_effective_goal: str) -> str:
+    """Turn prior persisted turns + the latest user goal into one prompt for the ReAct worker."""
+    conversation = _linear_conversation_rows(conversation)
+    if not conversation:
+        return current_effective_goal
+    blocks: list[str] = []
+    for item in conversation:
+        if not isinstance(item, dict):
+            continue
+        role = item.get("role")
+        text = str(item.get("text") or "").strip()
+        if not text:
+            continue
+        if role == "user":
+            blocks.append(f"User:\n{text}")
+        elif role == "assistant":
+            blocks.append(f"Assistant:\n{text}")
+    tail = (current_effective_goal or "").strip()
+    if tail:
+        blocks.append(f"User:\n{tail}")
+    merged = "\n\n---\n\n".join(blocks) if blocks else tail
+    return merged[:80_000]
 
 
 async def create_agent(db: AsyncSession, created_by: str, data: dict) -> Agent:
@@ -82,6 +124,16 @@ async def delete_agent(db: AsyncSession, agent_id: str):
         await db.commit()
 
 
+async def _clear_run_redis_signal(run_id: str) -> None:
+    redis = AsyncRedis.from_url(settings.redis_url, decode_responses=True)
+    try:
+        ch = agent_run_channel(run_id)
+        await redis.delete(f"{ch}:terminal")
+        await redis.delete(agent_cancel_key(run_id))
+    finally:
+        await redis.aclose()
+
+
 async def start_run(
     db: AsyncSession,
     agent_id: str,
@@ -89,26 +141,76 @@ async def start_run(
     triggered_by: str,
     attachments: list | None = None,
     model_override: str | None = None,
+    replace_run_id: str | None = None,
+    continue_run_id: str | None = None,
 ) -> AgentRun:
-    from datetime import datetime
+    rid_r = (replace_run_id or "").strip()
+    cid_c = (continue_run_id or "").strip()
+    if rid_r and cid_c:
+        raise ValueError("replace_and_continue_exclusive")
 
     effective = build_effective_goal(goal, attachments)
-    run = AgentRun(
-        agent_id=agent_id,
-        goal=effective,
-        status="idle",
-        triggered_by=triggered_by,
-        started_at=datetime.now(UTC),
-    )
-    db.add(run)
-    await db.commit()
-    await db.refresh(run)
+
+    if rid_r:
+        run = await get_run(db, rid_r)
+        if not run or run.agent_id != agent_id:
+            raise ValueError("replace_run_id_invalid")
+        if run.status == "executing":
+            raise ValueError("replace_run_in_progress")
+
+        run.goal = effective
+        run.status = "idle"
+        run.steps = []
+        run.output = None
+        run.error = None
+        run.total_steps = 0
+        run.completed_at = None
+        run.started_at = datetime.now(UTC)
+        run.triggered_by = triggered_by
+        run.feedback = None
+        run.conversation = []
+        await db.commit()
+        await db.refresh(run)
+        await _clear_run_redis_signal(run.id)
+    elif cid_c:
+        run = await get_run(db, cid_c)
+        if not run or run.agent_id != agent_id:
+            raise ValueError("continue_run_id_invalid")
+        if run.status == "executing":
+            raise ValueError("continue_run_in_progress")
+
+        run.goal = effective
+        run.status = "idle"
+        run.steps = []
+        run.output = None
+        run.error = None
+        run.total_steps = 0
+        run.completed_at = None
+        run.started_at = datetime.now(UTC)
+        run.triggered_by = triggered_by
+        run.feedback = None
+        await db.commit()
+        await db.refresh(run)
+        await _clear_run_redis_signal(run.id)
+    else:
+        run = AgentRun(
+            agent_id=agent_id,
+            goal=effective,
+            status="idle",
+            triggered_by=triggered_by,
+            started_at=datetime.now(UTC),
+            conversation=None,
+        )
+        db.add(run)
+        await db.commit()
+        await db.refresh(run)
 
     # Use the same Celery app instance as the sandbox worker (`services.sandbox.main:celery_app`)
     # so routing/serialization matches the consumer.
     from services.sandbox.tasks import celery_app as sandbox_celery
 
-    kwargs: dict = {"run_id": run.id, "agent_id": agent_id, "goal": effective}
+    worker_goal = worker_goal_from_prior_conversation(run.conversation, effective)
+    kwargs: dict = {"run_id": run.id, "agent_id": agent_id, "goal": worker_goal}
     # Only pass model_override when it differs from the saved agent model. This keeps Celery
     # kwargs compatible with older workers and avoids redundant queue payloads when the UI
     # always sends the current selection (e.g. gpt-5.4 matching the agent default).
@@ -130,6 +232,21 @@ async def start_run(
 async def get_run(db: AsyncSession, run_id: str) -> AgentRun | None:
     result = await db.execute(select(AgentRun).where(AgentRun.id == run_id))
     return result.scalar_one_or_none()
+
+
+async def update_run_conversation(
+    db: AsyncSession, run_id: str, conversation: list | dict
+) -> AgentRun | None:
+    run = await get_run(db, run_id)
+    if not run:
+        return None
+    # Must not call `list(conversation)` when `conversation` is a v2 dict:
+    # `list({"v":2,"linear":...,"tree":...})` becomes `["v","linear","tree"]`,
+    # wiping branches and breaking BranchPicker after reload.
+    run.conversation = list(conversation) if isinstance(conversation, list) else conversation
+    await db.commit()
+    await db.refresh(run)
+    return run
 
 
 async def delete_run(db: AsyncSession, run_id: str) -> bool:

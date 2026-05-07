@@ -26,6 +26,7 @@ from shared.schemas.agent import (
     AgentListOut,
     AgentOut,
     AgentUpdate,
+    RunConversationPatch,
     RunCreate,
     RunFeedbackBody,
     RunListOut,
@@ -259,17 +260,44 @@ async def delete_agent(
     return {"success": True}
 
 
-@router.post("/{agent_id}/run", response_model=RunOut, status_code=201)
+@router.post("/{agent_id}/run", response_model=RunOut)
 async def start_run(
-    agent_id: str, body: RunCreate,
-    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db),
+    agent_id: str,
+    body: RunCreate,
+    response: Response,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     agent = await service.get_agent(db, agent_id)
     if not agent:
         raise HTTPException(404, "Not found")
     if not await is_workspace_member(db, agent.workspace_id, user.id):
         raise HTTPException(403, "Forbidden")
-    run = await service.start_run(db, agent_id, body.goal, user.id, body.attachments, body.model)
+    try:
+        run = await service.start_run(
+            db,
+            agent_id,
+            body.goal,
+            user.id,
+            body.attachments,
+            body.model,
+            body.replace_run_id,
+            body.continue_run_id,
+        )
+    except ValueError as exc:
+        msg = str(exc)
+        if msg == "replace_run_id_invalid":
+            raise HTTPException(400, "Invalid replace_run_id for this agent.") from exc
+        if msg == "replace_run_in_progress":
+            raise HTTPException(409, "Run is still executing; cancel before replacing.") from exc
+        if msg == "continue_run_id_invalid":
+            raise HTTPException(400, "Invalid continue_run_id for this agent.") from exc
+        if msg == "continue_run_in_progress":
+            raise HTTPException(409, "Run is still executing; cancel before continuing.") from exc
+        if msg == "replace_and_continue_exclusive":
+            raise HTTPException(400, "Cannot set both replace_run_id and continue_run_id.") from exc
+        raise
+    response.status_code = 200 if (body.replace_run_id or body.continue_run_id) else 201
     return RunOut.model_validate(run)
 
 
@@ -299,6 +327,25 @@ async def get_run(run_id: str, response: Response, db: AsyncSession = Depends(ge
         raise HTTPException(404, "Not found")
     response.headers["Cache-Control"] = "no-store"
     return RunOut.model_validate(run)
+
+
+@router.patch("/runs/{run_id}/conversation", response_model=RunOut)
+async def patch_run_conversation(
+    run_id: str,
+    body: RunConversationPatch,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    run = await service.get_run(db, run_id)
+    if not run:
+        raise HTTPException(404, "Not found")
+    agent = await service.get_agent(db, run.agent_id)
+    if not agent or not await is_workspace_member(db, agent.workspace_id, user.id):
+        raise HTTPException(403, "Forbidden")
+    updated = await service.update_run_conversation(db, run_id, body.conversation)
+    if not updated:
+        raise HTTPException(404, "Not found")
+    return RunOut.model_validate(updated)
 
 
 @router.post("/runs/{run_id}/cancel")
@@ -424,6 +471,8 @@ async def agent_run_websocket(websocket: WebSocket, run_id: str, token: str | No
             await websocket.send_text(terminal)
             return
 
+        terminal_key = f"{channel}:terminal"
+
         async def _relay_events():
             while True:
                 msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
@@ -432,8 +481,15 @@ async def agent_run_websocket(websocket: WebSocket, run_id: str, token: str | No
                     try:
                         data = json.loads(msg["data"])
                     except json.JSONDecodeError:
-                        continue
-                    if data.get("type") in ("run_completed", "run_failed", "run_stopped"):
+                        pass
+                    else:
+                        if data.get("type") in ("run_completed", "run_failed", "run_stopped"):
+                            return
+                else:
+                    # PUB/SUB can race with subscribe; terminal is also stored on this key.
+                    cached = await redis.get(terminal_key)
+                    if cached:
+                        await websocket.send_text(cached)
                         return
                 await asyncio.sleep(0.05)
 

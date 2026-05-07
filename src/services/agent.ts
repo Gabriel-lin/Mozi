@@ -89,6 +89,8 @@ export interface RunOut {
   created_at: string;
   pinned_at?: string | null;
   feedback?: string | null;
+  /** Persisted thread: legacy array or v2 `{ v, linear, tree }` for branching. */
+  conversation?: Record<string, unknown>[] | Record<string, unknown> | null;
 }
 
 export interface RunListOut {
@@ -109,6 +111,19 @@ export interface RunCreateInput {
   attachments?: RunAttachmentIn[];
   /** Overrides agent default model for this run (OpenAI id or vLLM served name). */
   model?: string | null;
+  /**
+   * When set, the API resets this existing run and re-queues it instead of inserting a new row.
+   * Use when editing a historical user message or regenerating so the sidebar does not duplicate runs.
+   */
+  replace_run_id?: string | null;
+  /**
+   * Re-queue the same run row for another user turn (multi-turn). Mutually exclusive with `replace_run_id`.
+   */
+  continue_run_id?: string | null;
+}
+
+export interface RunConversationPatchInput {
+  conversation: Record<string, unknown>[] | Record<string, unknown>;
 }
 
 export const agentApi = {
@@ -161,6 +176,10 @@ export const agentApi = {
       params: { _: Date.now() },
       cache: "no-store",
     });
+  },
+
+  patchRunConversation(runId: string, body: RunConversationPatchInput) {
+    return api.patch<RunOut>(`${PREFIX}/runs/${runId}/conversation`, body);
   },
 
   cancelRun(runId: string) {

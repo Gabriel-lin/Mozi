@@ -60,3 +60,5 @@ class AgentRun(Base):
     )
     pinned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     feedback: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # Persisted thread (user/assistant pairs) for run page reload and multi-turn within one run.
+    conversation: Mapped[list | None] = mapped_column(JSONB, nullable=True)

@@ -30,6 +30,10 @@ import {
   ThumbsDown,
   ThumbsUp,
 } from "lucide-react";
+import {
+  ComposerAttachments,
+  UserMessageAttachments,
+} from "@/components/assistant-ui/attachment";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import {
   Select,
@@ -265,7 +269,7 @@ const AgentRunComposer: FC<{
             "dark:bg-muted/20",
           )}
         >
-          <ComposerPrimitive.Attachments />
+          <ComposerAttachments />
           <div className="flex items-center justify-end gap-2 border-b border-border/50 px-2.5 py-1">
             <label htmlFor={modelFieldId} className="shrink-0 text-xs text-muted-foreground">
               {t("agent.runModel")}
@@ -427,7 +431,7 @@ const AgentRunEditComposer: FC<{ dictationSupported: boolean }> = ({ dictationSu
     >
       {isUser ? (
         <>
-          <ComposerPrimitive.Attachments />
+          <ComposerAttachments />
           <div className="flex min-h-10 items-end gap-1 border-b border-border/40 pb-2">
             <ComposerPrimitive.AddAttachment
               multiple
@@ -495,8 +499,8 @@ const AgentRunUserMessage: FC = () => {
             .attachments?.length ?? 0) > 0
         }
       >
-        <div className="mb-1 flex w-full max-w-[min(100%,42rem)] flex-row flex-wrap justify-end gap-2">
-          <MessagePrimitive.Attachments />
+        <div className="mb-1 w-full max-w-[min(100%,42rem)]">
+          <UserMessageAttachments />
         </div>
       </AuiIf>
 
