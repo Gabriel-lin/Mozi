@@ -17,8 +17,7 @@ const selectTriggerVariants = cva(
   {
     variants: {
       variant: {
-        outline:
-          "border border-input bg-transparent hover:bg-accent hover:text-accent-foreground",
+        outline: "border border-input bg-transparent hover:bg-accent hover:text-accent-foreground",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         muted: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
       },
@@ -63,10 +62,7 @@ const SelectScrollUpButton = ({
 }: ComponentPropsWithoutRef<typeof SelectPrimitive.ScrollUpButton>) => (
   <SelectPrimitive.ScrollUpButton
     data-slot="select-scroll-up-button"
-    className={cn(
-      "flex cursor-default items-center justify-center py-1",
-      className,
-    )}
+    className={cn("flex cursor-default items-center justify-center py-1", className)}
     {...props}
   >
     <ChevronUpIcon className="size-4" />
@@ -79,10 +75,7 @@ const SelectScrollDownButton = ({
 }: ComponentPropsWithoutRef<typeof SelectPrimitive.ScrollDownButton>) => (
   <SelectPrimitive.ScrollDownButton
     data-slot="select-scroll-down-button"
-    className={cn(
-      "flex cursor-default items-center justify-center py-1",
-      className,
-    )}
+    className={cn("flex cursor-default items-center justify-center py-1", className)}
     {...props}
   >
     <ChevronDownIcon className="size-4" />
@@ -179,11 +172,10 @@ export interface SelectOption {
   disabled?: boolean;
 }
 
-export interface SelectProps
-  extends Pick<
-    ComponentPropsWithoutRef<typeof SelectPrimitive.Root>,
-    "value" | "onValueChange" | "disabled"
-  > {
+export interface SelectProps extends Pick<
+  ComponentPropsWithoutRef<typeof SelectPrimitive.Root>,
+  "value" | "onValueChange" | "disabled"
+> {
   value: string;
   onValueChange: (value: string) => void;
   options: readonly SelectOption[];
@@ -216,9 +208,7 @@ function Select({ options, placeholder, className, ...props }: SelectProps) {
             key={itemProps.value}
             {...itemProps}
             {...(disabled !== undefined ? { disabled } : {})}
-            textValue={
-              textValue ?? (typeof label === "string" ? label : itemProps.value)
-            }
+            textValue={textValue ?? (typeof label === "string" ? label : itemProps.value)}
           >
             {label}
           </SelectItem>

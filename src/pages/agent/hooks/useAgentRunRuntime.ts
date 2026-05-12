@@ -1,11 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type SetStateAction,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 import {
   CompositeAttachmentAdapter,
@@ -199,8 +192,11 @@ export function useAgentRunRuntime({
   onRunSettled,
 }: Options) {
   const { t, i18n } = useTranslation();
-  const { models, loading: modelsLoading, defaultModelId } =
-    useAgentProviderModels(agentLlmProvider);
+  const {
+    models,
+    loading: modelsLoading,
+    defaultModelId,
+  } = useAgentProviderModels(agentLlmProvider);
 
   /** Agent 配置优先，否则用当前 provider 模型列表默认项（避免写死 gpt-5.4 与非 OpenAI provider 不一致导致 Radix Select 无匹配值、只显示占位）。 */
   const resolvedFallbackModel = useMemo(() => {
@@ -307,54 +303,57 @@ export function useAgentRunRuntime({
    * In **messageRepository** mode the runtime imports the repo directly and ignores `convertMessage` at runtime,
    * but `ExternalStoreAdapter<AgentRunMessage>` still requires `convertMessage` in the type (AgentRunMessage ≠ ThreadMessage).
    */
-  const applyMessages = useCallback((action: ApplyConversationAction) => {
-    if (typeof action === "function") {
-      setThread((prev) => {
-        const rid = sessionRunIdRef.current ?? "";
-        const base: AgentRunMessage[] =
-          prev.mode === "messages" ? [...prev.items] : linearMessagesFromExport(prev.repo, rid);
-        const next = action(base);
-        return { mode: "messages", items: [...next] };
+  const applyMessages = useCallback(
+    (action: ApplyConversationAction) => {
+      if (typeof action === "function") {
+        setThread((prev) => {
+          const rid = sessionRunIdRef.current ?? "";
+          const base: AgentRunMessage[] =
+            prev.mode === "messages" ? [...prev.items] : linearMessagesFromExport(prev.repo, rid);
+          const next = action(base);
+          return { mode: "messages", items: [...next] };
+        });
+        return;
+      }
+
+      if (!Array.isArray(action)) return;
+
+      const arr = action as readonly AgentRunMessage[] | readonly ThreadMessage[];
+      const looksLikeThreadMessages =
+        arr.length > 0 &&
+        arr.every((m) => {
+          if (!m || typeof m !== "object") return false;
+          const o = m as Record<string, unknown>;
+          return (
+            typeof o.id === "string" &&
+            (o.role === "user" || o.role === "assistant") &&
+            Array.isArray(o.content)
+          );
+        });
+
+      if (looksLikeThreadMessages) {
+        finalizeRepositoryBranchSync();
+        return;
+      }
+
+      if (arr.length === 0) {
+        setThread((prev) => {
+          if (prev.mode === "repository") {
+            finalizeRepositoryBranchSync();
+            return prev;
+          }
+          return { mode: "messages", items: [] };
+        });
+        return;
+      }
+
+      setThread({
+        mode: "messages",
+        items: [...(arr as readonly AgentRunMessage[])],
       });
-      return;
-    }
-
-    if (!Array.isArray(action)) return;
-
-    const arr = action as readonly AgentRunMessage[] | readonly ThreadMessage[];
-    const looksLikeThreadMessages =
-      arr.length > 0 &&
-      arr.every((m) => {
-        if (!m || typeof m !== "object") return false;
-        const o = m as Record<string, unknown>;
-        return (
-          typeof o.id === "string" &&
-          (o.role === "user" || o.role === "assistant") &&
-          Array.isArray(o.content)
-        );
-      });
-
-    if (looksLikeThreadMessages) {
-      finalizeRepositoryBranchSync();
-      return;
-    }
-
-    if (arr.length === 0) {
-      setThread((prev) => {
-        if (prev.mode === "repository") {
-          finalizeRepositoryBranchSync();
-          return prev;
-        }
-        return { mode: "messages", items: [] };
-      });
-      return;
-    }
-
-    setThread({
-      mode: "messages",
-      items: [...(arr as readonly AgentRunMessage[])],
-    });
-  }, [finalizeRepositoryBranchSync]);
+    },
+    [finalizeRepositoryBranchSync],
+  );
 
   const messages = useMemo((): readonly AgentRunMessage[] => {
     if (thread.mode === "repository") return linearMessagesFromExport(thread.repo, loadedRunId);
@@ -481,8 +480,7 @@ export function useAgentRunRuntime({
         applyMessages((prev) => prev.map((m) => (m.id === asstId ? { ...m, text: md } : m)));
       };
 
-      const useContinue =
-        !replaceRunId && continueRunId?.trim() ? continueRunId.trim() : undefined;
+      const useContinue = !replaceRunId && continueRunId?.trim() ? continueRunId.trim() : undefined;
 
       const started = await agentApi.startRun(agentId, {
         goal,
@@ -645,7 +643,16 @@ export function useAgentRunRuntime({
       const { signal } = abortRef.current;
 
       try {
-        await executeRun(goal, attachments, asstId, signal, t as TFunction, null, replaceRunId, undefined);
+        await executeRun(
+          goal,
+          attachments,
+          asstId,
+          signal,
+          t as TFunction,
+          null,
+          replaceRunId,
+          undefined,
+        );
       } catch (e) {
         if (e instanceof DOMException && e.name === "AbortError") {
           applyMessages((prev) =>
@@ -704,7 +711,16 @@ export function useAgentRunRuntime({
       const { signal } = abortRef.current;
 
       try {
-        await executeRun(goal, attachments, asstId, signal, t as TFunction, null, replaceRunId, undefined);
+        await executeRun(
+          goal,
+          attachments,
+          asstId,
+          signal,
+          t as TFunction,
+          null,
+          replaceRunId,
+          undefined,
+        );
       } catch (e) {
         if (e instanceof DOMException && e.name === "AbortError") {
           applyMessages((prev) =>

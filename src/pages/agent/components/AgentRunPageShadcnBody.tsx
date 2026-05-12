@@ -73,7 +73,10 @@ export const AgentRunPageShadcnBody: FC<AgentRunPageShadcnBodyProps> = ({
           <div className={cn("flex h-full shrink-0 flex-col", SIDEBAR_W)}>
             <div className="flex h-14 shrink-0 items-center px-4">{logoRow}</div>
             <div className="min-h-0 flex-1 overflow-hidden p-3">
-              <AgentRunHistorySidebar {...historyProps} className={embeddedHistorySidebarClassName} />
+              <AgentRunHistorySidebar
+                {...historyProps}
+                className={embeddedHistorySidebarClassName}
+              />
             </div>
           </div>
         </div>

@@ -1,32 +1,34 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { ArrowLeft, Bot, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { agentApi, type RunOut } from "@/services/agent";
-import { AgentRunPageShadcnBody } from "@/pages/agent/components/AgentRunPageShadcnBody";
-import { AgentRunSession } from "@/pages/agent/AgentRunSession";
-// import { Shadcn } from "@/pages/agent/components/AssistantUiShadcnExample";
-// import { AssistantUiDocsRuntimeProvider } from "@/pages/agent/components/AssistantUiDocsRuntimeProvider";
+// import { AgentRunPageShadcnBody } from "@/pages/agent/components/AgentRunPageShadcnBody";
+// import { AgentRunSession } from "@/pages/agent/AgentRunSession";
+import { Shadcn } from "@/pages/agent/components/AssistantUiShadcnExample";
+import { LangGraphRuntimeProvider } from "@/pages/agent/components/LangGraphRuntimeProvider";
 import { cn } from "@/lib/utils";
-import { AgentProviderId, coerceAgentProviderId } from "./utils";
+import { AgentProviderId, coerceAgentProviderId, modelDisplayLabel } from "./utils";
+import { useAgentProviderModels } from "./hooks/useAgentProviderModels";
+import type { ModelOption } from "@/components/assistant-ui/model-selector";
 
 export function AgentRunPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { agentId } = useParams<{ agentId: string }>();
-  const [agentName, setAgentName] = useState<string | null>(null);
+  const [_agentName, setAgentName] = useState<string | null>(null);
   const [agentDefaultModel, setAgentDefaultModel] = useState<string | null>(null);
   const [agentLlmProvider, setAgentLlmProvider] = useState<AgentProviderId>(() =>
     coerceAgentProviderId("openai"),
   );
-  const [runs, setRuns] = useState<RunOut[]>([]);
-  const [runsLoading, setRunsLoading] = useState(true);
-  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [_runs, setRuns] = useState<RunOut[]>([]);
+  const [_runsLoading, setRunsLoading] = useState(true);
+  const [_selectedRunId, setSelectedRunId] = useState<string | null>(null);
   /** Bumps when starting a blank thread so `AgentRunSession` remounts with a clean runtime. */
-  const [draftEpoch, setDraftEpoch] = useState(0);
+  const [_draftEpoch, setDraftEpoch] = useState(0);
 
-  const fetchRuns = useCallback(
+  const _fetchRuns = useCallback(
     async (opts?: { silent?: boolean }) => {
       if (!agentId) return;
       if (!opts?.silent) setRunsLoading(true);
@@ -76,18 +78,46 @@ export function AgentRunPage() {
     };
   }, [agentId, navigate]);
 
-  const onNewChat = useCallback(() => {
+  const _onNewChat = useCallback(() => {
     setSelectedRunId(null);
     setDraftEpoch((n) => n + 1);
   }, []);
 
-  const onSelectRun = useCallback((runId: string) => {
+  const _onSelectRun = useCallback((runId: string) => {
     setSelectedRunId(runId);
   }, []);
 
+  // Mirror the edit page's provider-aware model catalog so the run-page
+  // selector matches what the user just configured (live API, OpenRouter
+  // fallback, or static fallback — handled inside the hook).
+  const {
+    models: providerModels,
+    loading: providerModelsLoading,
+    defaultModelId,
+  } = useAgentProviderModels(agentLlmProvider);
+
+  const modelOptions = useMemo<ModelOption[]>(
+    () =>
+      providerModels.map((m) => ({
+        id: m.id,
+        name: modelDisplayLabel(m.name, m.id),
+      })),
+    [providerModels],
+  );
+
+  // Initial picker value = saved agent model when valid, otherwise the
+  // provider's default. Switching models in the picker is per-session and
+  // never writes back to ``agentApi.update``.
+  const initialModel = useMemo(() => {
+    if (agentDefaultModel && providerModels.some((m) => m.id === agentDefaultModel)) {
+      return agentDefaultModel;
+    }
+    return defaultModelId || agentDefaultModel || "";
+  }, [agentDefaultModel, providerModels, defaultModelId]);
+
   if (!agentId) return null;
 
-  const sessionMountKey = `${agentId}-${selectedRunId ?? `draft-${draftEpoch}`}`;
+  const _sessionMountKey = `${agentId}-${_selectedRunId ?? `draft-${_draftEpoch}`}`;
 
   return (
     <div
@@ -130,8 +160,7 @@ export function AgentRunPage() {
         </Button>
       </header>
 
-      
-      <AgentRunPageShadcnBody
+      {/* <AgentRunPageShadcnBody
         runs={runs}
         loading={runsLoading}
         selectedRunId={selectedRunId}
@@ -153,14 +182,18 @@ export function AgentRunPage() {
             void fetchRuns({ silent: true });
           }}
         />
-      </AgentRunPageShadcnBody>
-     
+      </AgentRunPageShadcnBody> */}
 
-      {/* <div className="min-h-0 flex-1 overflow-hidden">
-        <AssistantUiDocsRuntimeProvider>
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <LangGraphRuntimeProvider
+          agentId={agentId}
+          initialModel={initialModel}
+          models={modelOptions}
+          modelsLoading={providerModelsLoading}
+        >
           <Shadcn />
-        </AssistantUiDocsRuntimeProvider>
-      </div> */}
+        </LangGraphRuntimeProvider>
+      </div>
     </div>
   );
 }

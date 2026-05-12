@@ -35,16 +35,12 @@ type ModelSelectorContextValue = {
   value: string | undefined;
 };
 
-const ModelSelectorContext = createContext<ModelSelectorContextValue | null>(
-  null,
-);
+const ModelSelectorContext = createContext<ModelSelectorContextValue | null>(null);
 
 function useModelSelectorContext() {
   const ctx = useContext(ModelSelectorContext);
   if (!ctx) {
-    throw new Error(
-      "ModelSelector sub-components must be used within ModelSelector.Root",
-    );
+    throw new Error("ModelSelector sub-components must be used within ModelSelector.Root");
   }
   return ctx;
 }
@@ -81,9 +77,7 @@ function ModelSelectorRoot({
   );
 }
 
-export type ModelSelectorTriggerProps = ComponentPropsWithoutRef<
-  typeof SelectTrigger
->;
+export type ModelSelectorTriggerProps = ComponentPropsWithoutRef<typeof SelectTrigger>;
 
 function ModelSelectorTrigger({
   className,
@@ -114,8 +108,7 @@ function ModelSelectorTrigger({
  */
 function ModelSelectorValue() {
   const { models, value } = useModelSelectorContext();
-  const selectedModel =
-    value != null ? models.find((m) => m.id === value) : undefined;
+  const selectedModel = value != null ? models.find((m) => m.id === value) : undefined;
 
   if (!selectedModel) {
     return <SelectPrimitive.Value />;
@@ -135,15 +128,9 @@ function ModelSelectorValue() {
   );
 }
 
-export type ModelSelectorContentProps = ComponentPropsWithoutRef<
-  typeof SelectContent
->;
+export type ModelSelectorContentProps = ComponentPropsWithoutRef<typeof SelectContent>;
 
-function ModelSelectorContent({
-  className,
-  children,
-  ...props
-}: ModelSelectorContentProps) {
+function ModelSelectorContent({ className, children, ...props }: ModelSelectorContentProps) {
   const { models } = useModelSelectorContext();
 
   return (
@@ -171,11 +158,7 @@ export type ModelSelectorItemProps = Omit<
   model: ModelOption;
 };
 
-function ModelSelectorItem({
-  model,
-  className,
-  ...props
-}: ModelSelectorItemProps) {
+function ModelSelectorItem({ model, className, ...props }: ModelSelectorItemProps) {
   return (
     <SelectPrimitive.Item
       data-slot="model-selector-item"
@@ -205,9 +188,7 @@ function ModelSelectorItem({
         </span>
       </SelectPrimitive.ItemText>
       {model.description && (
-        <span className="truncate text-muted-foreground text-xs">
-          {model.description}
-        </span>
+        <span className="truncate text-muted-foreground text-xs">{model.description}</span>
       )}
     </SelectPrimitive.Item>
   );
@@ -229,9 +210,7 @@ const ModelSelectorImpl = ({
   ...forwardedProps
 }: ModelSelectorProps) => {
   const isControlled = controlledValue !== undefined;
-  const [internalValue, setInternalValue] = useState(
-    () => defaultValue ?? models[0]?.id ?? "",
-  );
+  const [internalValue, setInternalValue] = useState(() => defaultValue ?? models[0]?.id ?? "");
 
   const value = isControlled ? controlledValue : internalValue;
   const onValueChange = controlledOnValueChange ?? setInternalValue;
@@ -272,9 +251,7 @@ type ModelSelectorComponent = typeof ModelSelectorImpl & {
   Value: typeof ModelSelectorValue;
 };
 
-const ModelSelector = memo(
-  ModelSelectorImpl,
-) as unknown as ModelSelectorComponent;
+const ModelSelector = memo(ModelSelectorImpl) as unknown as ModelSelectorComponent;
 
 ModelSelector.displayName = "ModelSelector";
 ModelSelector.Root = ModelSelectorRoot;

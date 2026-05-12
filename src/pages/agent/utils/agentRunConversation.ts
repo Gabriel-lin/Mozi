@@ -40,7 +40,9 @@ function textFromThreadMessage(m: ThreadMessage): string {
     .join("\n\n");
 }
 
-function userPartsFromThreadMessage(m: ThreadMessage): readonly ThreadUserMessagePart[] | undefined {
+function userPartsFromThreadMessage(
+  m: ThreadMessage,
+): readonly ThreadUserMessagePart[] | undefined {
   if (m.role !== "user" || typeof m.content === "string") return undefined;
   const allowed = new Set(["text", "file", "image", "audio", "data"]);
   const parts = m.content.filter((p) => allowed.has(p.type)) as ThreadUserMessagePart[];
@@ -217,7 +219,9 @@ export function userChainFromHead(exp: ExportedMessageRepository): string[] {
  * turns are fixed before later ones.
  * When only the **assistant** BranchPicker moves, `userChainFromHead` is unchanged and callers skip this.
  */
-export function preferLatestAssistantOnPath(exp: ExportedMessageRepository): ExportedMessageRepository {
+export function preferLatestAssistantOnPath(
+  exp: ExportedMessageRepository,
+): ExportedMessageRepository {
   let repo = exp;
   for (let guard = 0; guard < 24; guard++) {
     const headId = repo.headId;

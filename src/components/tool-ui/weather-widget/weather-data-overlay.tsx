@@ -15,11 +15,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type {
-  ForecastDay,
-  TemperatureUnit,
-  WeatherConditionCode,
-} from "./schema-runtime";
+import type { ForecastDay, TemperatureUnit, WeatherConditionCode } from "./schema-runtime";
 import {
   getSceneBrightnessFromTimeOfDay,
   getTimeOfDay,
@@ -52,9 +48,7 @@ function sineEasedGradient(
     const eased = Math.sin((t * Math.PI) / 2);
     const opacity = peakOpacity * (1 - eased);
     const position = t * 100;
-    stops.push(
-      `rgba(255,255,255,${opacity.toFixed(4)}) ${position.toFixed(1)}%`,
-    );
+    stops.push(`rgba(255,255,255,${opacity.toFixed(4)}) ${position.toFixed(1)}%`);
   }
   return `radial-gradient(circle ${radius}px at ${x}px ${y}px, ${stops.join(", ")})`;
 }
@@ -200,10 +194,7 @@ export function WeatherDataOverlay({
 
   const theme =
     themeProp ??
-    getWeatherTheme(
-      getSceneBrightnessFromTimeOfDay(timeOfDay, conditionCode),
-      undefined,
-    );
+    getWeatherTheme(getSceneBrightnessFromTimeOfDay(timeOfDay, conditionCode), undefined);
 
   const commitGlowState = useCallback((nextState: GlowState) => {
     setGlowState((prevState) => {
@@ -241,10 +232,7 @@ export function WeatherDataOverlay({
         return;
       }
 
-      if (
-        typeof window === "undefined" ||
-        typeof window.requestAnimationFrame !== "function"
-      ) {
+      if (typeof window === "undefined" || typeof window.requestAnimationFrame !== "function") {
         pendingGlowStateRef.current = null;
         commitGlowState(nextState);
         return;
@@ -276,7 +264,9 @@ export function WeatherDataOverlay({
 
   useEffect(() => {
     if (reducedMotion) {
-      clearGlowIntensity();
+      queueMicrotask(() => {
+        clearGlowIntensity();
+      });
       return;
     }
 
@@ -287,14 +277,8 @@ export function WeatherDataOverlay({
       if (!cardRef.current) return;
       const cardRect = cardRef.current.getBoundingClientRect();
 
-      const clampedX = Math.max(
-        cardRect.left,
-        Math.min(e.clientX, cardRect.right),
-      );
-      const clampedY = Math.max(
-        cardRect.top,
-        Math.min(e.clientY, cardRect.bottom),
-      );
+      const clampedX = Math.max(cardRect.left, Math.min(e.clientX, cardRect.right));
+      const clampedY = Math.max(cardRect.top, Math.min(e.clientY, cardRect.bottom));
 
       const distanceX =
         e.clientX < cardRect.left
@@ -332,12 +316,7 @@ export function WeatherDataOverlay({
       container.removeEventListener("mouseleave", handleMouseLeave);
       cancelPendingGlowFrame();
     };
-  }, [
-    reducedMotion,
-    clearGlowIntensity,
-    scheduleGlowState,
-    cancelPendingGlowFrame,
-  ]);
+  }, [reducedMotion, clearGlowIntensity, scheduleGlowState, cancelPendingGlowFrame]);
 
   const roundedTemperature = Math.round(temperature);
   const unitSymbol = unit === "celsius" ? "C" : "F";
@@ -354,29 +333,22 @@ export function WeatherDataOverlay({
   const bgOpacity = baseBgOpacity * (1 - peakIntensity * 0.7);
   const midnightDistance = Math.min(timeOfDay, 1 - timeOfDay);
   const baseBlur = isDark ? 2 + midnightDistance * 38 : 24;
-  const blurAmount = isDark
-    ? baseBlur
-    : baseBlur - peakIntensity * (baseBlur - 8);
+  const blurAmount = isDark ? baseBlur : baseBlur - peakIntensity * (baseBlur - 8);
 
   // Dawn intensity peaks around timeOfDay 0.2-0.3 (morning transition)
   const isDawn = timeOfDay > 0.1 && timeOfDay < 0.4;
   const dawnIntensity = isDawn ? 1 - Math.abs(timeOfDay - 0.25) * 4 : 0;
   const forecastTextShadow =
-    dawnIntensity > 0
-      ? `0 0.5px 1px rgba(0,0,0,${(dawnIntensity * 0.4).toFixed(2)})`
-      : undefined;
+    dawnIntensity > 0 ? `0 0.5px 1px rgba(0,0,0,${(dawnIntensity * 0.4).toFixed(2)})` : undefined;
 
-  const shadowStyle = isDark
-    ? "0 1px 8px rgba(0,0,0,0.3)"
-    : "0 1px 8px rgba(255,255,255,0.3)";
+  const shadowStyle = isDark ? "0 1px 8px rgba(0,0,0,0.3)" : "0 1px 8px rgba(255,255,255,0.3)";
 
   // Fluid type scales with the widget container size. (Requires container-type:size.)
   const locationFontSize = "clamp(13px, 7.5cqmin, 17px)";
   const temperatureFontSize = "clamp(48px, 32cqmin, 72px)";
   const degreeFontSize = "clamp(18px, 12cqmin, 28px)";
   const hiLoFontSize = "clamp(11px, 6.5cqmin, 15px)";
-  const forecastFontFamily =
-    '"SF Pro Text", Inter, "Noto Sans", system-ui, sans-serif';
+  const forecastFontFamily = '"SF Pro Text", Inter, "Noto Sans", system-ui, sans-serif';
 
   return (
     <div
@@ -390,10 +362,7 @@ export function WeatherDataOverlay({
       <div className="px-6 pt-6">
         <div className="flex flex-col items-start">
           <h2
-            className={cn(
-              "font-medium leading-[1.08] tracking-tight",
-              textSecondary,
-            )}
+            className={cn("font-medium leading-[1.08] tracking-tight", textSecondary)}
             style={{
               fontSize: locationFontSize,
               fontFamily: forecastFontFamily,
@@ -444,17 +413,11 @@ export function WeatherDataOverlay({
               fontFeatureSettings: '"tnum" 1, "case" 1',
             }}
           >
-            <span
-              className="font-medium tabular-nums"
-              style={{ fontSize: hiLoFontSize }}
-            >
+            <span className="font-medium tabular-nums" style={{ fontSize: hiLoFontSize }}>
               <span className={textSubtle}>H </span>
               <span className={textPrimary}>{Math.round(tempHigh)}°</span>
             </span>
-            <span
-              className="font-medium tabular-nums"
-              style={{ fontSize: hiLoFontSize }}
-            >
+            <span className="font-medium tabular-nums" style={{ fontSize: hiLoFontSize }}>
               <span className={textSubtle}>L </span>
               <span className={textPrimary}>{Math.round(tempLow)}°</span>
             </span>
@@ -475,12 +438,7 @@ export function WeatherDataOverlay({
               className="pointer-events-none absolute inset-0 z-10 rounded-xl transition-opacity duration-300 ease-out"
               style={{
                 opacity: glowState.intensity,
-                background: sineEasedGradient(
-                  glowState.x,
-                  glowState.y,
-                  100,
-                  isDark ? 0.6 : 1,
-                ),
+                background: sineEasedGradient(glowState.x, glowState.y, 100, isDark ? 0.6 : 1),
                 mask: "linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)",
                 maskComposite: "exclude",
                 WebkitMaskComposite: "xor",

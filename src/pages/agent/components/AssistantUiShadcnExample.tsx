@@ -8,14 +8,7 @@ import { MessageTiming } from "@/components/assistant-ui/message-timing";
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
 import { ThreadList } from "@/components/assistant-ui/thread-list";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
-import {
-  Reasoning,
-  ReasoningGroup,
-  ReasoningContent,
-  ReasoningRoot,
-  ReasoningText,
-  ReasoningTrigger,
-} from "@/components/assistant-ui/reasoning";
+import { Reasoning, ReasoningGroup } from "@/components/assistant-ui/reasoning";
 import { ToolGroup } from "@/components/assistant-ui/tool-group";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -38,8 +31,8 @@ import {
   ThreadPrimitive,
   unstable_useMentionAdapter,
   unstable_useSlashCommandAdapter,
+  useAssistantState,
   type Unstable_SlashCommand,
-  type ThreadMessage,
   type QuoteInfo,
 } from "@assistant-ui/react";
 import {
@@ -64,32 +57,24 @@ import {
   SquareIcon,
   WrenchIcon,
 } from "lucide-react";
-import {
-  LexicalComposerInput,
-  type DirectiveChipProps,
-} from "@assistant-ui/react-lexical";
+import { LexicalComposerInput, type DirectiveChipProps } from "@assistant-ui/react-lexical";
 import { useState, type FC } from "react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { ModelSelector } from "@/components/assistant-ui/model-selector";
 import { docsModelOptions } from "@/components/docs/assistant/docs-model-options";
 import { DEFAULT_MODEL_ID } from "@/constants/model";
+import { useRuntimeModelContext } from "@/pages/agent/components/LangGraphRuntimeProvider";
 
 /** `@assistant-ui/store` 的 `AssistantState` 类型滞后于运行时字段，与 `AgentRunGrokThread` 一致做窄化断言。 */
-const threadOf = (s: unknown) =>
-  (s as { thread: { isEmpty: boolean; isRunning: boolean } }).thread;
-const messageOf = (s: unknown) =>
-  (s as { message: { isCopied: boolean } }).message;
+const threadOf = (s: unknown) => (s as { thread: { isEmpty: boolean; isRunning: boolean } }).thread;
+const messageOf = (s: unknown) => (s as { message: { isCopied: boolean } }).message;
 
 const Logo: FC = () => {
   return (
     <div className="flex items-center gap-2 px-2 font-medium text-sm">
       {/* Vite：静态资源放在 public，等价于上游 Next 对 `@/public/favicon/icon.svg` 的引用 */}
-      <img
-        src="/favicon/icon.svg"
-        alt="logo"
-        className="size-5 dark:hue-rotate-180 dark:invert"
-      />
-      <span className="text-foreground/90">assistant-ui</span>
+      <img src="/favicon/icon.svg" alt="logo" className="size-5 dark:hue-rotate-180 dark:invert" />
+      <span className="text-foreground/90">Mozi</span>
     </div>
   );
 };
@@ -118,11 +103,7 @@ const MobileSidebar: FC = () => {
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-9 shrink-0 md:hidden"
-        >
+        <Button variant="ghost" size="icon" className="size-9 shrink-0 md:hidden">
           <MenuIcon className="size-4" />
           <span className="sr-only">Toggle menu</span>
         </Button>
@@ -139,13 +120,33 @@ const MobileSidebar: FC = () => {
   );
 };
 
-const models = docsModelOptions();
+const fallbackModels = docsModelOptions();
 
+/**
+ * Renders the per-session model selector.
+ *
+ * Inside `LangGraphRuntimeProvider` the picker is **controlled** by the runtime
+ * context so its initial value matches the agent's saved model and live
+ * changes only override the current chat session (never the persisted config).
+ * When mounted standalone (e.g. assistant-ui docs example), it falls back to
+ * the static docs catalog.
+ */
 const ModelPicker: FC = () => {
+  const ctx = useRuntimeModelContext();
+
+  if (!ctx) {
+    return (
+      <ModelSelector models={fallbackModels} defaultValue={DEFAULT_MODEL_ID} variant="outline" />
+    );
+  }
+
+  const models = ctx.models.length > 0 ? ctx.models : fallbackModels;
+
   return (
     <ModelSelector
       models={models}
-      defaultValue={DEFAULT_MODEL_ID}
+      value={ctx.selectedModel || undefined}
+      onValueChange={ctx.onSelectedModelChange}
       variant="outline"
     />
   );
@@ -182,8 +183,32 @@ const Header: FC<{
   );
 };
 
-type ThreadMessageWithComposer = ThreadMessage & {
-  composer: { isEditing: boolean };
+/**
+ * Selects the appropriate message renderer using **reactive** message-scope
+ * state subscriptions.
+ *
+ * The ``ThreadPrimitive.Messages`` render-prop hands you a ``message`` getter
+ * whose snapshot is cached and only invalidated on access — meaning inline
+ * `if (message.composer.isEditing)` branches **do not re-render** when the
+ * edit composer toggles (the cached snapshot keeps pointing at the previous
+ * state). Subscribing to the individual fields via ``useAssistantState`` is
+ * the canonical workaround used elsewhere in the app (see
+ * ``AgentRunGrokThread.tsx``).
+ */
+const ThreadMessageSwitch: FC = () => {
+  type ScopedMessageState = {
+    message: { role: "user" | "assistant" | "system"; composer: { isEditing: boolean } };
+  };
+  const isEditing = useAssistantState(
+    (s) => (s as unknown as ScopedMessageState).message.composer.isEditing,
+  );
+  const role = useAssistantState((s) => (s as unknown as ScopedMessageState).message.role);
+
+  if (role === "user") {
+    if (isEditing) return <EditComposer />;
+    return <UserMessage />;
+  }
+  return <AssistantMessage />;
 };
 
 const Thread: FC = () => {
@@ -205,17 +230,8 @@ const Thread: FC = () => {
           <ThreadWelcome />
         </AuiIf>
 
-        <div
-          data-slot="aui_message-group"
-          className="mb-10 flex flex-col gap-y-8 empty:hidden"
-        >
-          <ThreadPrimitive.Messages>
-            {({ message }: { message: ThreadMessageWithComposer }) => {
-              if (message.composer.isEditing) return <EditComposer />;
-              if (message.role === "user") return <UserMessage />;
-              return <AssistantMessage />;
-            }}
-          </ThreadPrimitive.Messages>
+        <div data-slot="aui_message-group" className="mb-10 flex flex-col gap-y-8 empty:hidden">
+          <ThreadPrimitive.Messages>{() => <ThreadMessageSwitch />}</ThreadPrimitive.Messages>
         </div>
 
         <ThreadPrimitive.ViewportFooter className="aui-thread-viewport-footer sticky bottom-0 mx-auto mt-auto flex w-full max-w-(--thread-max-width) flex-col gap-4 overflow-visible rounded-t-(--composer-radius) bg-background pb-4 md:pb-6">
@@ -264,9 +280,7 @@ const ThreadWelcome: FC = () => {
 const ThreadSuggestions: FC = () => {
   return (
     <div className="aui-thread-welcome-suggestions grid w-full @md:grid-cols-2 gap-2 pb-4">
-      <ThreadPrimitive.Suggestions>
-        {() => <ThreadSuggestionItem />}
-      </ThreadPrimitive.Suggestions>
+      <ThreadPrimitive.Suggestions>{() => <ThreadSuggestionItem />}</ThreadPrimitive.Suggestions>
     </div>
   );
 };
@@ -369,11 +383,7 @@ const Composer: FC = () => {
 
         <ComposerTriggerPopover char="@" {...mention} />
 
-        <ComposerTriggerPopover
-          char="/"
-          {...slash}
-          emptyItemsLabel="No matching commands"
-        />
+        <ComposerTriggerPopover char="/" {...slash} emptyItemsLabel="No matching commands" />
       </ComposerPrimitive.Root>
     </ComposerPrimitive.Unstable_TriggerPopoverRoot>
   );
@@ -492,10 +502,7 @@ const AssistantActionBar: FC = () => {
       </ActionBarPrimitive.Reload>
       <ActionBarMorePrimitive.Root>
         <ActionBarMorePrimitive.Trigger asChild>
-          <TooltipIconButton
-            tooltip="More"
-            className="data-[state=open]:bg-accent"
-          >
+          <TooltipIconButton tooltip="More" className="data-[state=open]:bg-accent">
             <MoreHorizontalIcon />
           </TooltipIconButton>
         </ActionBarMorePrimitive.Trigger>
@@ -562,39 +569,45 @@ const UserActionBar: FC = () => {
   );
 };
 
+/**
+ * Per-message edit composer rendered when the user clicks the Edit action on a
+ * past user message.
+ *
+ * Uses the plain ``ComposerPrimitive.Input`` (matching the official docs at
+ * https://assistant-ui.com/docs/guides/editing). ``LexicalComposerInput`` from
+ * ``@assistant-ui/react-lexical`` binds to ``aui.composer()`` once via Lexical
+ * editor state, but the **edit** composer lives at the message scope (a
+ * different ``aui.composer()`` instance than the thread input). Keeping the
+ * editor tied to the per-message scope avoids the edit bubble silently failing
+ * to mount because the lexical editor stayed wired to the thread composer.
+ */
 const EditComposer: FC = () => {
   return (
     <MessagePrimitive.Root
       data-slot="aui_edit-composer-wrapper"
       className="mx-auto flex w-full max-w-(--thread-max-width) flex-col px-2"
     >
-      <ComposerPrimitive.Unstable_TriggerPopoverRoot>
-        <ComposerPrimitive.Root className="aui-edit-composer-root ml-auto flex w-full max-w-[85%] flex-col rounded-2xl bg-muted">
-          <LexicalComposerInput
-            directiveChip={DirectiveChip}
-            autoFocus
-            className="aui-edit-composer-input min-h-14 w-full resize-none bg-transparent p-4 text-foreground text-sm outline-none [&_.aui-directive-chip-icon]:self-center [&_.aui-directive-chip]:inline-flex [&_.aui-directive-chip]:items-baseline [&_.aui-directive-chip]:gap-1 [&_.aui-directive-chip]:rounded-md [&_.aui-directive-chip]:bg-blue-100 [&_.aui-directive-chip]:px-1.5 [&_.aui-directive-chip]:py-0.5 [&_.aui-directive-chip]:font-medium [&_.aui-directive-chip]:text-[13px] [&_.aui-directive-chip]:text-blue-700 [&_.aui-directive-chip]:leading-none dark:[&_.aui-directive-chip]:bg-blue-900/50 dark:[&_.aui-directive-chip]:text-blue-300 [&_.aui-lexical-input]:min-h-lh [&_.aui-lexical-input]:outline-none"
-          />
-          <div className="aui-edit-composer-footer mx-3 mb-3 flex items-center gap-2 self-end">
-            <ComposerPrimitive.Cancel asChild>
-              <Button variant="ghost" size="sm">
-                Cancel
-              </Button>
-            </ComposerPrimitive.Cancel>
-            <ComposerPrimitive.Send asChild>
-              <Button size="sm">Update</Button>
-            </ComposerPrimitive.Send>
-          </div>
-        </ComposerPrimitive.Root>
-      </ComposerPrimitive.Unstable_TriggerPopoverRoot>
+      <ComposerPrimitive.Root className="aui-edit-composer-root ml-auto flex w-full max-w-[85%] flex-col rounded-2xl bg-muted">
+        <ComposerPrimitive.Input
+          autoFocus
+          className="aui-edit-composer-input min-h-14 w-full resize-none bg-transparent p-4 text-foreground text-sm outline-none"
+        />
+        <div className="aui-edit-composer-footer mx-3 mb-3 flex items-center gap-2 self-end">
+          <ComposerPrimitive.Cancel asChild>
+            <Button variant="ghost" size="sm">
+              Cancel
+            </Button>
+          </ComposerPrimitive.Cancel>
+          <ComposerPrimitive.Send asChild>
+            <Button size="sm">Update</Button>
+          </ComposerPrimitive.Send>
+        </div>
+      </ComposerPrimitive.Root>
     </MessagePrimitive.Root>
   );
 };
 
-const BranchPicker: FC<BranchPickerPrimitive.Root.Props> = ({
-  className,
-  ...rest
-}) => {
+const BranchPicker: FC<BranchPickerPrimitive.Root.Props> = ({ className, ...rest }) => {
   return (
     <BranchPickerPrimitive.Root
       hideWhenSingleBranch

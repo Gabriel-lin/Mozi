@@ -67,9 +67,7 @@ export function getContextWindow(modelId: string): number {
 }
 
 const ACTIVE_MODELS = MODELS.filter((m) => !m.disabled);
-const AVAILABLE_MODEL_IDS = new Set<KnownModelId>(
-  ACTIVE_MODELS.map((m) => m.value),
-);
+const AVAILABLE_MODEL_IDS = new Set<KnownModelId>(ACTIVE_MODELS.map((m) => m.value));
 
 export function isAvailableModelId(id: string): id is KnownModelId {
   return AVAILABLE_MODEL_IDS.has(id as KnownModelId);

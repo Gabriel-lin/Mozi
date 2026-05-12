@@ -6,12 +6,7 @@ import {
   ThreadListItemPrimitive,
   ThreadListPrimitive,
 } from "@assistant-ui/react";
-import {
-  ArchiveIcon,
-  MoreHorizontalIcon,
-  PlusIcon,
-  TrashIcon,
-} from "lucide-react";
+import { ArchiveIcon, MoreHorizontalIcon, PlusIcon, TrashIcon } from "lucide-react";
 import type { FC } from "react";
 
 export const ThreadList: FC = () => {
@@ -19,20 +14,12 @@ export const ThreadList: FC = () => {
     <ThreadListPrimitive.Root className="aui-root aui-thread-list-root flex flex-col gap-1">
       <ThreadListNew />
       <AuiIf
-        condition={(s) =>
-          Boolean((s as { threads?: { isLoading?: boolean } }).threads?.isLoading)
-        }
+        condition={(s) => Boolean((s as { threads?: { isLoading?: boolean } }).threads?.isLoading)}
       >
         <ThreadListSkeleton />
       </AuiIf>
-      <AuiIf
-        condition={(s) =>
-          !(s as { threads?: { isLoading?: boolean } }).threads?.isLoading
-        }
-      >
-        <ThreadListPrimitive.Items>
-          {() => <ThreadListItem />}
-        </ThreadListPrimitive.Items>
+      <AuiIf condition={(s) => !(s as { threads?: { isLoading?: boolean } }).threads?.isLoading}>
+        <ThreadListPrimitive.Items>{() => <ThreadListItem />}</ThreadListPrimitive.Items>
       </AuiIf>
     </ThreadListPrimitive.Root>
   );

@@ -1,11 +1,7 @@
 "use client";
 
 import { useMessageTiming } from "@assistant-ui/react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { FC } from "react";
 
@@ -74,9 +70,7 @@ export const MessageTiming: FC<{
           )}
           <div className="flex items-center justify-between gap-4">
             <span className="text-muted-foreground">Total</span>
-            <span className="font-mono tabular-nums">
-              {formatTimingMs(timing.totalStreamTime)}
-            </span>
+            <span className="font-mono tabular-nums">{formatTimingMs(timing.totalStreamTime)}</span>
           </div>
           {timing.tokensPerSecond !== undefined && (
             <div className="flex items-center justify-between gap-4">

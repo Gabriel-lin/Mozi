@@ -35,10 +35,7 @@ type WeatherResult =
       error: string;
     };
 
-const mapOpenMeteoCodeToCondition = (
-  code: number,
-  windSpeed?: number,
-): WeatherConditionCode => {
+const mapOpenMeteoCodeToCondition = (code: number, windSpeed?: number): WeatherConditionCode => {
   if (windSpeed !== undefined && windSpeed >= 45 && code <= 3) return "windy";
 
   switch (code) {
@@ -86,9 +83,7 @@ const mapOpenMeteoCodeToCondition = (
   }
 };
 
-const mapPrecipitationLevel = (
-  precipitation?: number,
-): PrecipitationLevel | undefined => {
+const mapPrecipitationLevel = (precipitation?: number): PrecipitationLevel | undefined => {
   if (precipitation === undefined) return undefined;
   if (precipitation <= 0) return "none";
   if (precipitation < 1) return "light";
@@ -118,9 +113,7 @@ const formatForecastLabel = (date: string, index: number): string => {
   }).format(parsedDate);
 };
 
-export const geocodeLocationWithOpenMeteo = async (
-  query: string,
-): Promise<GeocodeResult> => {
+export const geocodeLocationWithOpenMeteo = async (query: string): Promise<GeocodeResult> => {
   try {
     const response = await fetch(
       `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1`,
@@ -143,8 +136,7 @@ export const geocodeLocationWithOpenMeteo = async (
   } catch (error) {
     return {
       success: false,
-      error:
-        error instanceof Error ? error.message : "Failed to geocode location",
+      error: error instanceof Error ? error.message : "Failed to geocode location",
     };
   }
 };
@@ -177,14 +169,12 @@ export const fetchWeatherWidgetFromOpenMeteo = async ({
       throw new Error("Invalid API response format");
     }
 
-    const forecast: ForecastDay[] = daily.time
-      .slice(0, 5)
-      .map((date: string, index: number) => ({
-        label: formatForecastLabel(date, index),
-        conditionCode: mapOpenMeteoCodeToCondition(daily.weather_code[index]),
-        tempMin: daily.temperature_2m_min[index],
-        tempMax: daily.temperature_2m_max[index],
-      }));
+    const forecast: ForecastDay[] = daily.time.slice(0, 5).map((date: string, index: number) => ({
+      label: formatForecastLabel(date, index),
+      conditionCode: mapOpenMeteoCodeToCondition(daily.weather_code[index]),
+      tempMin: daily.temperature_2m_min[index],
+      tempMax: daily.temperature_2m_max[index],
+    }));
 
     if (forecast.length === 0) {
       throw new Error("No forecast data available");
@@ -200,10 +190,7 @@ export const fetchWeatherWidgetFromOpenMeteo = async ({
         location: { name: query },
         units: { temperature: "fahrenheit" },
         current: {
-          conditionCode: mapOpenMeteoCodeToCondition(
-            current.weather_code,
-            current.wind_speed_10m,
-          ),
+          conditionCode: mapOpenMeteoCodeToCondition(current.weather_code, current.wind_speed_10m),
           temperature: current.temperature_2m,
           tempMin: daily.temperature_2m_min[0],
           tempMax: daily.temperature_2m_max[0],

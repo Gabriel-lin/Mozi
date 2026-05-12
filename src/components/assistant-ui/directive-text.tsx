@@ -1,10 +1,7 @@
 "use client";
 
 import { memo, type FC } from "react";
-import type {
-  TextMessagePartComponent,
-  TextMessagePartProps,
-} from "@assistant-ui/react";
+import type { TextMessagePartComponent, TextMessagePartProps } from "@assistant-ui/react";
 import type { Unstable_DirectiveFormatter } from "@assistant-ui/core";
 import { unstable_defaultDirectiveFormatter } from "@assistant-ui/core";
 import { Badge } from "./badge";
@@ -68,9 +65,7 @@ export function createDirectiveText(
   return Component;
 }
 
-const DirectiveTextImpl = createDirectiveText(
-  unstable_defaultDirectiveFormatter,
-);
+const DirectiveTextImpl = createDirectiveText(unstable_defaultDirectiveFormatter);
 
 /** `Text` message part component that renders directive syntax as inline chips. */
 export const DirectiveText: TextMessagePartComponent = memo(DirectiveTextImpl);

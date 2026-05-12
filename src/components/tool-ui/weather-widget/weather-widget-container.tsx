@@ -34,23 +34,17 @@ export function WeatherWidget({
       return false;
     }
 
-    return (
-      window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false
-    );
+    return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
   });
 
   useEffect(() => {
-    if (
-      typeof window === "undefined" ||
-      typeof window.matchMedia !== "function"
-    ) {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
       return;
     }
 
-    const mediaQueryList = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    );
-    setPrefersReducedMotion(mediaQueryList.matches);
+    const mediaQueryList = window.matchMedia("(prefers-reduced-motion: reduce)");
+    // Initial `matches` is already applied in `useState` initializer; avoid
+    // synchronous setState in the effect body (react-hooks/set-state-in-effect).
 
     const handleMotionPreferenceChange = (event: MediaQueryListEvent) => {
       setPrefersReducedMotion(event.matches);
@@ -59,10 +53,7 @@ export function WeatherWidget({
     if (typeof mediaQueryList.addEventListener === "function") {
       mediaQueryList.addEventListener("change", handleMotionPreferenceChange);
       return () => {
-        mediaQueryList.removeEventListener(
-          "change",
-          handleMotionPreferenceChange,
-        );
+        mediaQueryList.removeEventListener("change", handleMotionPreferenceChange);
       };
     }
 
@@ -80,18 +71,12 @@ export function WeatherWidget({
     updatedAt,
   });
   const timeOfDay = snapTimeOfDayToNearestCheckpoint(resolvedTime.timeOfDay);
-  const tunedOverrides =
-    TUNED_WEATHER_EFFECTS_CHECKPOINT_OVERRIDES[current.conditionCode];
+  const tunedOverrides = TUNED_WEATHER_EFFECTS_CHECKPOINT_OVERRIDES[current.conditionCode];
   const checkpoint = getNearestCheckpoint(timeOfDay) as TimeCheckpoint;
   const checkpointOverrides = tunedOverrides?.[checkpoint];
   const glassParams =
-    checkpointOverrides && "glass" in checkpointOverrides
-      ? checkpointOverrides.glass
-      : undefined;
-  const brightness = getSceneBrightnessFromTimeOfDay(
-    timeOfDay,
-    current.conditionCode,
-  );
+    checkpointOverrides && "glass" in checkpointOverrides ? checkpointOverrides.glass : undefined;
+  const brightness = getSceneBrightnessFromTimeOfDay(timeOfDay, current.conditionCode);
   const weatherTheme = getWeatherTheme(brightness, undefined);
   const isWeatherDark = weatherTheme === "dark";
   const backgroundClass = isWeatherDark

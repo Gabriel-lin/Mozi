@@ -15,10 +15,7 @@ import {
 } from "@assistant-ui/react";
 import { useChatRuntime } from "@assistant-ui/react-ai-sdk";
 import { DevToolsModal } from "@assistant-ui/react-devtools";
-import {
-  DirectChatTransport,
-  lastAssistantMessageIsCompleteWithToolCalls,
-} from "ai";
+import { DirectChatTransport, lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 import { docsToolkit } from "@/lib/docs-toolkit";
 import { createDirectLlmAgent } from "@/pages/agent/lib/createDirectLlmAgent";
 
@@ -38,9 +35,7 @@ function assistantCloudBaseUrl(): string {
   try {
     host = new URL(urlString).hostname.toLowerCase();
   } catch {
-    throw new Error(
-      `VITE_PUBLIC_ASSISTANT_BASE_URL 不是合法 URL：${raw.trim()}`,
-    );
+    throw new Error(`VITE_PUBLIC_ASSISTANT_BASE_URL 不是合法 URL：${raw.trim()}`);
   }
 
   const mistakenLlmHosts = new Set([
@@ -61,9 +56,7 @@ function assistantCloudBaseUrl(): string {
 
 type DirectConfig = { baseURL: string; apiKey: string; model: string };
 
-function resolveRuntimeMode():
-  | { kind: "direct"; config: DirectConfig }
-  | { kind: "cloud" } {
+function resolveRuntimeMode(): { kind: "direct"; config: DirectConfig } | { kind: "cloud" } {
   const apiKey =
     typeof import.meta.env.VITE_LLM_API_KEY === "string"
       ? import.meta.env.VITE_LLM_API_KEY.trim()
@@ -161,15 +154,13 @@ function DirectAssistantRuntimeProvider({
   children: ReactNode;
   config: DirectConfig;
 }) {
+  const { baseURL, apiKey, model } = config;
   const agent = useMemo(
-    () => createDirectLlmAgent(config),
-    [config.baseURL, config.apiKey, config.model],
+    () => createDirectLlmAgent({ baseURL, apiKey, model }),
+    [baseURL, apiKey, model],
   );
 
-  const transport = useMemo(
-    () => new DirectChatTransport({ agent }),
-    [agent],
-  );
+  const transport = useMemo(() => new DirectChatTransport({ agent }), [agent]);
 
   const adapters = useMemo(
     () => ({
@@ -213,7 +204,5 @@ export function AssistantUiDocsRuntimeProvider({ children }: { children: ReactNo
       </DirectAssistantRuntimeProvider>
     );
   }
-  return (
-    <CloudAssistantRuntimeProvider>{children}</CloudAssistantRuntimeProvider>
-  );
+  return <CloudAssistantRuntimeProvider>{children}</CloudAssistantRuntimeProvider>;
 }

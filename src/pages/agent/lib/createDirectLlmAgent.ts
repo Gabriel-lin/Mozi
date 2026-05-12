@@ -6,11 +6,7 @@ import {
   geocodeLocationWithOpenMeteo,
 } from "@/lib/open-meteo-weather-adapter";
 
-export function createDirectLlmAgent(opts: {
-  baseURL: string;
-  apiKey: string;
-  model: string;
-}) {
+export function createDirectLlmAgent(opts: { baseURL: string; apiKey: string; model: string }) {
   const openai = createOpenAI({
     baseURL: opts.baseURL,
     apiKey: opts.apiKey,
@@ -23,8 +19,7 @@ export function createDirectLlmAgent(opts: {
       execute: async ({ query }) => geocodeLocationWithOpenMeteo(query),
     }),
     weather_search: tool({
-      description:
-        "Find the weather in a location given a longitude and latitude",
+      description: "Find the weather in a location given a longitude and latitude",
       inputSchema: z.object({
         query: z.string(),
         longitude: z.number(),

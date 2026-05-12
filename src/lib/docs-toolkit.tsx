@@ -15,8 +15,7 @@ const geocodeLocationTool = {
   parameters: z.object({
     query: z.string(),
   }),
-  execute: async (args: { query: string }) =>
-    geocodeLocationWithOpenMeteo(args.query),
+  execute: async (args: { query: string }) => geocodeLocationWithOpenMeteo(args.query),
   render: ({ result }: any) => {
     if (result?.error) {
       return (
@@ -26,9 +25,7 @@ const geocodeLocationTool = {
           </ToolCardIcon>
           <ToolCardContent>
             <ToolCardTitle>Geocoding failed</ToolCardTitle>
-            <ToolCardDescription>
-              {result?.error || "Unknown error"}
-            </ToolCardDescription>
+            <ToolCardDescription>{result?.error || "Unknown error"}</ToolCardDescription>
           </ToolCardContent>
         </ToolCard>
       );
@@ -71,11 +68,8 @@ const weatherSearchTool = {
     longitude: z.number(),
     latitude: z.number(),
   }),
-  execute: async (args: {
-    query: string;
-    longitude: number;
-    latitude: number;
-  }) => fetchWeatherWidgetFromOpenMeteo(args),
+  execute: async (args: { query: string; longitude: number; latitude: number }) =>
+    fetchWeatherWidgetFromOpenMeteo(args),
   render: ({ args, result }: any) => {
     const isLoading = !result;
     const error = result?.success === false ? result.error : null;
@@ -143,9 +137,7 @@ const ToolCard = ({
   <div
     className={cn(
       "my-2 flex items-center gap-3 rounded-lg border px-3 py-2.5",
-      variant === "error"
-        ? "border-destructive/30 bg-destructive/5"
-        : "bg-muted/30",
+      variant === "error" ? "border-destructive/30 bg-destructive/5" : "bg-muted/30",
     )}
   >
     {children}

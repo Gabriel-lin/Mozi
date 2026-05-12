@@ -30,10 +30,7 @@ import {
   ThumbsDown,
   ThumbsUp,
 } from "lucide-react";
-import {
-  ComposerAttachments,
-  UserMessageAttachments,
-} from "@/components/assistant-ui/attachment";
+import { ComposerAttachments, UserMessageAttachments } from "@/components/assistant-ui/attachment";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import {
   Select,
