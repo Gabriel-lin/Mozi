@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from shared.database import Base
@@ -9,11 +9,13 @@ from .user import _nanoid
 
 class McpServer(Base):
     __tablename__ = "mcp_servers"
+    __table_args__ = (UniqueConstraint("workspace_id", "name", name="uq_mcp_servers_workspace_name"),)
 
     id: Mapped[str] = mapped_column(String(21), primary_key=True, default=_nanoid)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    url: Mapped[str] = mapped_column(String(500), nullable=False)
+    url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     transport: Mapped[str] = mapped_column(String(30), default="streamable_http", nullable=False)
+    definition_json: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
     auth_type: Mapped[str | None] = mapped_column(String(20))
     auth_credential: Mapped[str | None] = mapped_column(Text)
     workspace_id: Mapped[str] = mapped_column(

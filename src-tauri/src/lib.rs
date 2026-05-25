@@ -3,6 +3,8 @@ use mozi_core::system;
 use tauri::{Listener, Manager};
 use tauri_plugin_appearance::Theme;
 
+mod local_skills;
+
 // ── Tauri command wrappers（委托给 mozi-core 纯函数） ─────────────────────────
 
 #[tauri::command]
@@ -74,6 +76,7 @@ pub fn run() {
             get_disk_info,
             get_network_info,
             open_url,
+            local_skills::list_local_agent_skills,
         ])
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())

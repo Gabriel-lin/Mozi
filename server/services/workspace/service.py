@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from shared.models.user import User
 from shared.models.role import Role, UserRole
 from shared.models.workspace import Workspace, WorkspaceMember
+from shared.models.toolkit import Toolkit, WorkspaceToolkit
 
 
 async def list_users(db: AsyncSession, page: int = 1, page_size: int = 20, search: str | None = None):
@@ -211,3 +212,153 @@ async def remove_member(db: AsyncSession, workspace_id: str, user_id: str):
     if row:
         await db.delete(row)
         await db.commit()
+
+
+# ── Toolkits ──
+
+
+async def list_workspace_toolkits(db: AsyncSession, workspace_id: str):
+    """Return all toolkits with an `installed` flag relative to the workspace."""
+    result = await db.execute(
+        select(
+            Toolkit,
+            select(WorkspaceToolkit.toolkit_id)
+            .where(
+                and_(
+                    WorkspaceToolkit.workspace_id == workspace_id,
+                    WorkspaceToolkit.toolkit_id == Toolkit.id,
+                )
+            )
+            .exists()
+            .label("installed"),
+        ).order_by(Toolkit.name)
+    )
+    return result.all()
+
+
+async def install_toolkit(db: AsyncSession, workspace_id: str, toolkit_id: str, user_id: str):
+    existing = await db.execute(
+        select(WorkspaceToolkit).where(
+            and_(WorkspaceToolkit.workspace_id == workspace_id, WorkspaceToolkit.toolkit_id == toolkit_id)
+        )
+    )
+    if existing.scalar_one_or_none():
+        return
+    tk = await db.execute(select(Toolkit).where(Toolkit.id == toolkit_id))
+    if not tk.scalar_one_or_none():
+        raise ValueError("toolkit_not_found")
+    db.add(WorkspaceToolkit(workspace_id=workspace_id, toolkit_id=toolkit_id, installed_by=user_id))
+    await db.commit()
+
+
+async def uninstall_toolkit(db: AsyncSession, workspace_id: str, toolkit_id: str):
+    result = await db.execute(
+        select(WorkspaceToolkit).where(
+            and_(WorkspaceToolkit.workspace_id == workspace_id, WorkspaceToolkit.toolkit_id == toolkit_id)
+        )
+    )
+    row = result.scalar_one_or_none()
+    if row:
+        await db.delete(row)
+        await db.commit()
+
+
+async def list_workspace_mcp_servers(db: AsyncSession, workspace_id: str):
+    """Active MCP servers registered for this workspace (same DB as gateway)."""
+    from shared.models.mcp_server import McpServer
+
+    result = await db.execute(
+        select(McpServer)
+        .where(McpServer.workspace_id == workspace_id, McpServer.is_active.is_(True))
+        .order_by(McpServer.name),
+    )
+    return list(result.scalars().all())
+
+
+async def register_toolkit(db: AsyncSession, data: dict) -> Toolkit:
+    """Register a new external (mcp / custom) toolkit into the global registry."""
+    data = dict(data)
+    workspace_id = data.pop("workspace_id", None)
+    source = data.get("source", "custom")
+
+    if source == "mcp":
+        mcp_id = data.get("mcp_server_id")
+        if not mcp_id or not workspace_id:
+            raise ValueError("invalid_mcp_server")
+        from shared.models.mcp_server import McpServer
+
+        r = await db.execute(
+            select(McpServer).where(
+                McpServer.id == mcp_id,
+                McpServer.workspace_id == workspace_id,
+                McpServer.is_active.is_(True),
+            ),
+        )
+        row = r.scalar_one_or_none()
+        if row is None or row.transport != "streamable_http" or not row.url:
+            raise ValueError("invalid_mcp_server")
+    elif source == "custom":
+        data["mcp_server_id"] = None
+
+    tk = Toolkit(**data)
+    db.add(tk)
+    await db.commit()
+    await db.refresh(tk)
+    return tk
+
+
+async def update_toolkit(db: AsyncSession, toolkit_id: str, data: dict) -> Toolkit | None:
+    result = await db.execute(select(Toolkit).where(Toolkit.id == toolkit_id))
+    tk = result.scalar_one_or_none()
+    if not tk:
+        return None
+    for key, value in data.items():
+        if value is not None:
+            setattr(tk, key, value)
+    await db.commit()
+    await db.refresh(tk)
+    return tk
+
+
+async def delete_toolkit(db: AsyncSession, toolkit_id: str):
+    result = await db.execute(select(Toolkit).where(Toolkit.id == toolkit_id))
+    tk = result.scalar_one_or_none()
+    if not tk:
+        raise ValueError("toolkit_not_found")
+    if tk.is_builtin:
+        raise ValueError("cannot_delete_builtin")
+    await db.delete(tk)
+    await db.commit()
+
+
+async def resolve_installed_toolkits(db: AsyncSession, workspace_id: str) -> list[dict]:
+    """Return fully resolved toolkit info for agent execution.
+
+    For MCP-backed toolkits the mcp_server URL is joined in so the sandbox
+    executor can proxy calls without a second query.
+    """
+    from shared.models.mcp_server import McpServer
+
+    result = await db.execute(
+        select(Toolkit, WorkspaceToolkit.config_override, McpServer.url)
+        .join(WorkspaceToolkit, and_(
+            WorkspaceToolkit.toolkit_id == Toolkit.id,
+            WorkspaceToolkit.workspace_id == workspace_id,
+        ))
+        .outerjoin(McpServer, Toolkit.mcp_server_id == McpServer.id)
+        .order_by(Toolkit.name)
+    )
+    rows = result.all()
+    return [
+        {
+            "id": tk.id,
+            "name": tk.name,
+            "source": tk.source,
+            "executor_key": tk.executor_key,
+            "mcp_server_id": tk.mcp_server_id,
+            "mcp_server_url": mcp_url,
+            "config_json": tk.config_json,
+            "config_override": config_override,
+        }
+        for tk, config_override, mcp_url in rows
+    ]

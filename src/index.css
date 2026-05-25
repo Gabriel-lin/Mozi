@@ -59,10 +59,21 @@
 }
 
 @layer base {
+  /* One viewport: no document scroll; only in-app <main> scrolls. */
+  html {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
   body {
+    height: 100%;
+    min-height: 0;
+    max-height: 100%;
+    margin: 0;
+    overflow: hidden;
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    margin: 0;
     font-family:
       "SF Pro Display",
       -apple-system,
@@ -73,6 +84,15 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     letter-spacing: -0.011em;
+  }
+
+  #root {
+    height: 100%;
+    min-height: 0;
+    max-height: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
 
   code {

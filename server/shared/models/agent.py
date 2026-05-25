@@ -5,6 +5,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from shared.database import Base
+
 from .user import _nanoid
 
 AGENT_STATUSES = ("idle", "planning", "executing", "waiting", "completed", "failed", "stopped")
@@ -57,3 +58,7 @@ class AgentRun(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    pinned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    feedback: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # Persisted thread (user/assistant pairs) for run page reload and multi-turn within one run.
+    conversation: Mapped[list | None] = mapped_column(JSONB, nullable=True)

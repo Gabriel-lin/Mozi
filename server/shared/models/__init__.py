@@ -6,6 +6,7 @@ from .embedding import Embedding
 from .session import Session
 from .mcp_server import McpServer
 from .workflow import Workflow, WorkflowVersion, WorkflowRun
+from .toolkit import Toolkit, WorkspaceToolkit
 
 __all__ = [
     "User",
@@ -22,4 +23,6 @@ __all__ = [
     "Workflow",
     "WorkflowVersion",
     "WorkflowRun",
+    "Toolkit",
+    "WorkspaceToolkit",
 ]

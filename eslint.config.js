@@ -12,6 +12,8 @@ export default tseslint.config(
       "*.config.*",
       "src/**/*.test.*",
       "src/**/*.spec.*",
+      /** Generated runtime (minified); linting it produces thousands of false positives */
+      "src/components/tool-ui/weather-widget/generated/**",
     ],
   },
   js.configs.recommended,

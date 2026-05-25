@@ -13,6 +13,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY shared/ shared/
 COPY services/__init__.py services/__init__.py
 COPY services/workspace/ services/workspace/
+COPY services/sandbox/ services/sandbox/
 COPY services/agent/ services/agent/
 
 EXPOSE 3003

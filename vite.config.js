@@ -51,9 +51,14 @@ export default defineConfig({
         target: "http://localhost:3002",
         changeOrigin: true,
       },
+      "/api/v1/toolkits": {
+        target: "http://localhost:3002",
+        changeOrigin: true,
+      },
       "/api/v1/agents": {
         target: "http://localhost:3003",
         changeOrigin: true,
+        ws: true,
       },
       "/api/v1/workflows": {
         target: "http://localhost:3004",

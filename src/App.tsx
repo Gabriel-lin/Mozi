@@ -31,6 +31,7 @@ import {
   FactoryTemplatePage,
   FactoryToolkitPage,
   FactoryToolPage,
+  FactoryMcpPage,
   WorkflowCreatePage,
   WorkflowEditPage,
   WorkflowRunPage,
@@ -128,7 +129,7 @@ function App() {
   const isLoginPage = location.pathname === "/login";
 
   return (
-    <div className="flex h-screen flex-col w-full">
+    <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
       {!isLoginPage && (
         <MenuBar
           theme={theme}
@@ -140,10 +141,10 @@ function App() {
         />
       )}
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         {!isLoginPage && <SideNav />}
 
-        <main className="flex-1 overflow-y-auto">
+        <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
           <Routes>
             <Route path="/" element={<Navigate to="/home" replace />} />
             <Route path="/home" element={<HomePage />} />
@@ -154,14 +155,15 @@ function App() {
             {/* Agent */}
             <Route path="/agent" element={<AgentPage />} />
             <Route path="/agent/create" element={<AgentCreatePage />} />
-            <Route path="/agent/edit" element={<AgentEditPage />} />
-            <Route path="/agent/run" element={<AgentRunPage />} />
+            <Route path="/agent/:agentId/edit" element={<AgentEditPage />} />
+            <Route path="/agent/:agentId/run" element={<AgentRunPage />} />
 
             {/* Factory */}
             <Route path="/factory" element={<FactoryPage />} />
             <Route path="/factory/create" element={<FactoryCreatePage />} />
             <Route path="/factory/template" element={<FactoryTemplatePage />} />
             <Route path="/factory/toolkit" element={<FactoryToolkitPage />} />
+            <Route path="/factory/mcp" element={<FactoryMcpPage />} />
             <Route path="/factory/tool" element={<FactoryToolPage />} />
 
             {/* Workflow */}

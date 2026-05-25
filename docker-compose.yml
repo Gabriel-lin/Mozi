@@ -22,6 +22,12 @@ services:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+      start_period: 2s
     networks:
       - mozi-net
 
@@ -67,7 +73,7 @@ services:
       migrate:
         condition: service_completed_successfully
       redis:
-        condition: service_started
+        condition: service_healthy
     env_file:
       - server/.env
     environment:
@@ -93,7 +99,7 @@ services:
       migrate:
         condition: service_completed_successfully
       redis:
-        condition: service_started
+        condition: service_healthy
     env_file:
       - server/.env
     environment:
@@ -119,6 +125,8 @@ services:
       migrate:
         condition: service_completed_successfully
       redis:
+        condition: service_healthy
+      sandbox-worker:
         condition: service_started
     env_file:
       - server/.env
@@ -145,7 +153,7 @@ services:
       migrate:
         condition: service_completed_successfully
       redis:
-        condition: service_started
+        condition: service_healthy
     env_file:
       - server/.env
     environment:
@@ -169,7 +177,7 @@ services:
       migrate:
         condition: service_completed_successfully
       redis:
-        condition: service_started
+        condition: service_healthy
     env_file:
       - server/.env
     environment:
@@ -193,7 +201,7 @@ services:
       migrate:
         condition: service_completed_successfully
       redis:
-        condition: service_started
+        condition: service_healthy
     env_file:
       - server/.env
     environment:
@@ -205,7 +213,6 @@ services:
     volumes:
       - ./server:/app
       - /app/.venv
-    command: uv run celery -A services.sandbox.main:celery_app worker -Q agent-runs -c 2 --loglevel=info
     networks:
       - mozi-net
 
@@ -219,7 +226,7 @@ services:
       migrate:
         condition: service_completed_successfully
       redis:
-        condition: service_started
+        condition: service_healthy
     env_file:
       - server/.env
     environment:

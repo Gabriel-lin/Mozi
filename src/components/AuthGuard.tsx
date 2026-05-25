@@ -11,7 +11,7 @@ interface AuthGuardProps {
 
 function LoadingSplash() {
   return (
-    <div className="flex h-screen w-full items-center justify-center bg-background">
+    <div className="flex h-full min-h-0 w-full min-w-0 flex-1 items-center justify-center bg-background">
       <div className="flex flex-col items-center gap-4 animate-fade-in">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
         <span className="text-sm text-muted-foreground">Loading…</span>

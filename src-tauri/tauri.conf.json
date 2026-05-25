@@ -21,7 +21,8 @@
         "fullscreen": false,
         "decorations": false,
         "transparent": false,
-        "focus": true
+        "focus": true,
+        "additionalBrowserArgs": "--enable-features=msSpeechRecognition"
       }
     ],
     "security": {
